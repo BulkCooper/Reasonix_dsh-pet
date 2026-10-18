@@ -81,6 +81,7 @@ const DEFAULTS = {
   petSize: 320,
   bubbleScale: 1,
   bubbleFontSize: 14,
+  returnAnchor: null,
 };
 
 const PET_CONFIG_FILE = join(HOME_DIR, 'dsh-pet', 'main-config.jsonc');
@@ -96,6 +97,14 @@ function readPetConfigFile() {
   } catch {
     return null;
   }
+}
+
+function normalizeReturnAnchor(value) {
+  if (!value || typeof value !== 'object') return null;
+  const rx = Number(value.rx);
+  const ry = Number(value.ry);
+  if (!Number.isFinite(rx) || !Number.isFinite(ry)) return null;
+  return { rx: Math.max(0, Math.min(1, rx)), ry: Math.max(0, Math.min(1, ry)) };
 }
 
 function readPetSize(config) {
@@ -1021,7 +1030,19 @@ export function startBalanceService() {
         petSize: readPetSize(config),
         bubbleScale: Number.isFinite(Number(config.bubbleScale)) ? Math.max(0.6, Math.min(2, Number(config.bubbleScale))) : DEFAULTS.bubbleScale,
         bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
+        returnAnchor: normalizeReturnAnchor(config.returnAnchor),
       });
+    }
+    if (url.pathname === '/return-anchor' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const config = loadConfig();
+      const anchor = body && body.clear === true ? null : normalizeReturnAnchor(body);
+      if (body && body.clear !== true && !anchor) {
+        return json(res, 400, { ok: false, error: 'invalid anchor: expected {rx,ry} in 0..1' });
+      }
+      config.returnAnchor = anchor;
+      writeJson(BALANCE_CONFIG_FILE, config);
+      return json(res, 200, { ok: true, returnAnchor: anchor });
     }
     if (url.pathname === '/status') {
       return json(res, 200, {

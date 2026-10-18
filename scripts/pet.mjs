@@ -69,7 +69,7 @@ function printStatus(status) {
     return;
   }
   const { state, health, pets } = status;
-  console.log(`reasonix-pet 2.1.6 · dsh-pet ${petVersion()}`);
+  console.log(`reasonix-pet 2.1.7 · dsh-pet ${petVersion()}`);
   console.log(`  状态   运行中 · 端口 ${state.port} · pid ${state.pid} · 启动于 ${state.startedAt}`);
   if (health?.name) console.log(`  服务   ${health.name}（已运行 ${health.uptimeSec ?? '?'} 秒）`);
   console.log(

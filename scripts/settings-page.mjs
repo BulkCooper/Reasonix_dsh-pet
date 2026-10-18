@@ -79,6 +79,7 @@ export const SETTINGS_HTML = `<!doctype html>
   <label for="autoReturnDelaySec">被拖走后等待（秒）</label>
   <input id="autoReturnDelaySec" type="number" min="0" step="1" value="60">
   <div class="hint">拖拽结束至少等待这么久，桌宠才会自动归位；0 = 立即归位。</div>
+  <div class="hint">右键桌宠 →「指定当前位置为回归位置」可覆盖上面的自动归位目标。</div>
 
   <h2>外观</h2>
   <label for="petSize">桌宠大小（px）</label>
