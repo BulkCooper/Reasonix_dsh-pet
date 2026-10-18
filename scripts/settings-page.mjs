@@ -79,7 +79,9 @@ export const SETTINGS_HTML = `<!doctype html>
   <label for="autoReturnDelaySec">被拖走后等待（秒）</label>
   <input id="autoReturnDelaySec" type="number" min="0" step="1" value="60">
   <div class="hint">拖拽结束至少等待这么久，桌宠才会自动归位；0 = 立即归位。</div>
-  <div class="hint">右键桌宠 →「指定当前位置为回归位置」可覆盖上面的自动归位目标。</div>
+  <div class="hint">右键桌宠 →「回归位置」二级菜单可指定当前位置为窗口回归位置。</div>
+  <button id="resetReturnAnchor" class="secondary" type="button">恢复默认窗口回归位置</button>
+  <div class="hint">清除自定义回归位置；Reasonix 窗口关闭/最小化时回到配置的初始角落。</div>
 
   <h2>外观</h2>
   <label for="petSize">桌宠大小（px）</label>
@@ -580,6 +582,22 @@ export const SETTINGS_HTML = `<!doctype html>
     } finally {
       saving = false;
       $('save').disabled = !settingsReady;
+    }
+  };
+
+  $('resetReturnAnchor').onclick = async function () {
+    $('message').textContent = '正在恢复…';
+    try {
+      var res = await fetch('/return-anchor', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ clear: true })
+      });
+      var d = await res.json().catch(function () { return null; });
+      if (!res.ok || !d || !d.ok) throw new Error((d && d.error) || ('HTTP ' + res.status));
+      $('message').textContent = '已恢复默认窗口回归位置';
+    } catch (error) {
+      $('message').textContent = '恢复失败：' + errText(error);
     }
   };
 
