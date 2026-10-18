@@ -13,7 +13,7 @@
 > 2.1.5：任务完成常驻提示；桌宠自动归位（窗口右下角/屏幕右下角，等待时间可调，可关闭）。  
 > 2.1.4：补回 Electron Chromium 许可证，精简 vendor 体积，修复 `pet.cmd install`。  
 > 2.1.3：修复手势收尾方法缺失导致的拖拽松手不抛掷、松开音效不响。  
-> 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/1fed1b948e5b039ec913a0a18e79d44fbe182187`  
+> 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/c825b81b4d8a9555b6c3703ac8b8889530ed3cd9`  
 > 上游：`dsh-pet@0.3.7`（MIT），Electron `43.3.0`
 
 <p align="center">
