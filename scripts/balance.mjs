@@ -4,14 +4,13 @@
  *   - 每 60 秒（可配）查一次 DeepSeek 余额
  *   - 双击宠物 / 右键「刷新余额」时显示气泡
  *   - 余额预警、今日已用、简单峰谷状态
- *   - 监听 Reasonix 的 stats/*.jsonl，按轮汇总本轮消耗
  *
- * 只监听 127.0.0.1:34741；API key 优先读插件配置，其次环境变量与 Reasonix 的 .env。
+ * 只监听 127.0.0.1:34741；API key 只读插件设置，不读取 Reasonix 的 .env/config.toml。
  * 不会把 key 写进日志或 /status。
  */
 import { createServer } from 'node:http';
 import * as tls from 'node:tls';
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import {
   BALANCE_CONFIG_FILE,
@@ -153,154 +152,62 @@ function loadConfig() {
   return { ...DEFAULTS, ...readJson(BALANCE_CONFIG_FILE, {}) };
 }
 
-function readEnvValue(name) {
-  const appData = process.env.APPDATA || '';
-  for (const file of [join(appData, 'reasonix', '.env'), join(appData, 'reasonix', '.env.local')]) {
-    try {
-      for (const raw of readFileSync(file, 'utf8').split(String.fromCharCode(10))) {
-        const line = raw.trim().replace(/^export\s+/, '');
-        const eq = line.indexOf('=');
-        if (eq < 0) continue;
-        if (line.slice(0, eq).trim() !== name) continue;
-        const value = line.slice(eq + 1).trim().replace(/^['"]|['"]$/g, '');
-        if (value) return value;
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  return '';
-}
-
-function keyFromEnvFile() {
-  return readEnvValue('DEEPSEEK_API_KEY');
-}
-
 function resolveApiKey(config) {
-  return (
-    String(config.apiKey || '').trim() ||
-    String(process.env.DEEPSEEK_API_KEY || '').trim() ||
-    keyFromEnvFile()
-  );
+  return String(config.apiKey || '').trim();
 }
 
-function readProviders() {
-  const file = join(process.env.APPDATA || '', 'reasonix', 'config.toml');
-  let text;
-  try {
-    text = readFileSync(file, 'utf8');
-  } catch {
-    return [];
-  }
-  const providers = [];
-  let current = null;
-  for (const raw of text.split(String.fromCharCode(10))) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    if (line.startsWith('[[')) {
-      if (current) providers.push(current);
-      current = line === '[[providers]]' ? {} : null;
-      continue;
-    }
-    if (line.startsWith('[') || !current) continue;
-    const eq = line.indexOf('=');
-    if (eq < 0) continue;
-    const key = line.slice(0, eq).trim();
-    if (!['name', 'display_name', 'api_key_env', 'balance_url', 'base_url', 'billing_currency'].includes(key)) continue;
-    let value = line.slice(eq + 1).trim();
-    const hash = value.indexOf('#');
-    if (hash >= 0) value = value.slice(0, hash).trim();
-    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
-    current[key] = value;
-  }
-  if (current) providers.push(current);
-  return providers;
-}
-
-function friendlyName(provider) {
-  const key = provider.api_key_env || '';
-  if (key === 'DEEPSEEK_API_KEY') return 'DeepSeek';
-  if (key === 'QLTY_API_KEY') return 'qlty';
-  if (key === 'SCNET_API_KEY') return 'SCNet';
-  if (key === 'MIMO_TOKEN_PLAN_API_KEY') return 'MiMo';
-  if (key === 'DISCOVERY_API_API_KEY') return provider.display_name || 'Discovery';
-  if (key.startsWith('REASONIX_CONNECTION_')) return provider.display_name || '本地模型';
-  return provider.display_name || provider.name || key;
-}
-
-function accountGroups() {
-  const map = new Map();
-  for (const provider of readProviders()) {
-    if (!provider.api_key_env) continue;
-    const balanceUrl = provider.balance_url || '';
-    const id = `${provider.api_key_env}|${balanceUrl}`;
-    if (!map.has(id)) {
-      map.set(id, {
-        id,
-        name: friendlyName(provider),
-        keyEnv: provider.api_key_env,
-        balanceUrl,
-        baseUrl: provider.base_url || '',
-        providers: [],
-      });
-    }
-    const name = provider.name || provider.display_name || provider.api_key_env;
-    if (!map.get(id).providers.includes(name)) map.get(id).providers.push(name);
-  }
-  return [...map.values()];
-}
-
+/**
+ * 只使用用户在插件设置里填写的 key/余额地址。
+ * 不读取 Reasonix 的 .env、config.toml 或任何其他组件凭证。
+ */
 async function refreshAccounts(config) {
-  const accounts = accountGroups();
-  const results = await Promise.all(
-    accounts.map(async (account) => {
-      const key =
-        account.keyEnv === 'DEEPSEEK_API_KEY' ? resolveApiKey(config) : readEnvValue(account.keyEnv);
-      if (!key) {
-        return { ...account, status: 'no-key', total: null, bonus: null, recharge: null, currency: '' };
-      }
-      if (!account.balanceUrl) {
-        return { ...account, status: 'no-balance-api', total: null, bonus: null, recharge: null, currency: '' };
-      }
-      try {
-        const response = await fetch(account.balanceUrl, {
-          headers: { Authorization: `Bearer ${key}` },
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!response.ok) {
-          return { ...account, status: `http-${response.status}`, total: null, bonus: null, recharge: null, currency: '' };
-        }
-        const data = await response.json();
-        const info = pickBalanceInfo(data && data.balance_infos);
-        if (!info || !Number.isFinite(Number(info.total_balance))) {
-          return { ...account, status: 'no-data', total: null, bonus: null, recharge: null, currency: '' };
-        }
-        return {
-          ...account,
-          status: 'ok',
-          total: Number(info.total_balance),
-          bonus: numberOrNull(info.granted_balance),
-          recharge: numberOrNull(info.topped_up_balance),
-          currency: String(info.currency || 'CNY'),
-        };
-      } catch {
-        return { ...account, status: 'error', total: null, bonus: null, recharge: null, currency: '' };
-      }
-    }),
-  );
-  return results.map((account) => {
-    const names = config.accountNames && typeof config.accountNames === 'object' ? config.accountNames : {};
-    const visibility =
-      config.accountVisibility && typeof config.accountVisibility === 'object' ? config.accountVisibility : {};
-    const custom = String(names[account.id] || '').trim();
+  const key = resolveApiKey(config);
+  const id = 'manual:deepseek';
+  const names = config.accountNames && typeof config.accountNames === 'object' ? config.accountNames : {};
+  const visibility =
+    config.accountVisibility && typeof config.accountVisibility === 'object' ? config.accountVisibility : {};
+  const custom = String(names[id] || '').trim();
+  const account = {
+    id,
+    name: custom || 'DeepSeek',
+    defaultName: 'DeepSeek',
+    customName: custom,
+    keyEnv: '',
+    balanceUrl: String(config.balanceUrl || DEFAULTS.balanceUrl),
+    baseUrl: '',
+    providers: ['manual'],
+    visible: visibility[id] !== false,
+  };
+  if (!key) {
+    return [{ ...account, status: 'no-key', total: null, bonus: null, recharge: null, currency: '' }];
+  }
+  if (!account.balanceUrl) {
+    return [{ ...account, status: 'no-balance-api', total: null, bonus: null, recharge: null, currency: '' }];
+  }
+  try {
+    const response = await fetch(account.balanceUrl, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) {
+      return { ...account, status: `http-${response.status}`, total: null, bonus: null, recharge: null, currency: '' };
+    }
+    const data = await response.json();
+    const info = pickBalanceInfo(data && data.balance_infos);
+    if (!info || !Number.isFinite(Number(info.total_balance))) {
+      return { ...account, status: 'no-data', total: null, bonus: null, recharge: null, currency: '' };
+    }
     return {
       ...account,
-      defaultName: account.name,
-      customName: custom || '',
-      name: custom || account.name,
-      visible: visibility[account.id] !== false,
+      status: 'ok',
+      total: Number(info.total_balance),
+      bonus: numberOrNull(info.granted_balance),
+      recharge: numberOrNull(info.topped_up_balance),
+      currency: String(info.currency || 'CNY'),
     };
-  });
+  } catch {
+    return { ...account, status: 'error', total: null, bonus: null, recharge: null, currency: '' };
+  }
 }
 
 function numberOrNull(value) {
@@ -423,7 +330,7 @@ function money(value) {
 }
 
 function errorText(reason) {
-  if (reason === 'no-key') return '未配置 DEEPSEEK_API_KEY：填到插件 home/balance-config.json 或 Reasonix 的 .env';
+  if (reason === 'no-key') return '未配置 DeepSeek API key：请在插件设置里填写';
   if (reason === 'HTTP 401' || reason === 'HTTP 403') return '余额查询失败：API key 无效或无权限';
   if (reason === 'timeout') return '余额查询超时，稍后再试';
   if (reason === 'network') return '余额查询失败：网络错误';
@@ -491,8 +398,7 @@ async function refresh({ show = false } = {}) {
     const config = loadConfig();
     const accounts = await refreshAccounts(config);
     lastAccounts = accounts;
-    const deepseek = accounts.find((account) => account.keyEnv === 'DEEPSEEK_API_KEY');
-    const primary = deepseek && deepseek.status === 'ok' ? deepseek : accounts.find((account) => account.status === 'ok');
+    const primary = accounts[0] && accounts[0].status === 'ok' ? accounts[0] : null;
     let snapshot;
     if (primary) {
       snapshot = { ok: true, total: primary.total, bonus: primary.bonus, recharge: primary.recharge, currency: primary.currency };
@@ -515,68 +421,6 @@ async function refresh({ show = false } = {}) {
     return await refreshing;
   } finally {
     refreshing = null;
-  }
-}
-
-// ---- 每轮消耗：监听 Reasonix 的 stats/YYYY-MM-DD.jsonl ----
-const statsDir = () => process.env.REASONIX_PET_STATS_DIR || join(process.env.APPDATA || '', 'reasonix', 'stats');
-let statsFile = '';
-let statsOffset = 0;
-let turnSum = 0;
-
-function initStats() {
-  statsFile = join(statsDir(), `${beijingDay()}.jsonl`);
-  try {
-    statsOffset = statSync(statsFile).size;
-  } catch {
-    statsOffset = 0;
-  }
-}
-
-function pollStats() {
-  const file = join(statsDir(), `${beijingDay()}.jsonl`);
-  if (file !== statsFile) {
-    statsFile = file;
-    statsOffset = 0;
-    turnSum = 0;
-  }
-  let size;
-  try {
-    size = statSync(file).size;
-  } catch {
-    return;
-  }
-  if (size < statsOffset) statsOffset = 0;
-  if (size === statsOffset) return;
-  const length = size - statsOffset;
-  let text = '';
-  try {
-    const fd = openSync(file, 'r');
-    const buffer = Buffer.alloc(length);
-    readSync(fd, buffer, 0, length, statsOffset);
-    closeSync(fd);
-    statsOffset = size;
-    text = buffer.toString('utf8');
-  } catch {
-    return;
-  }
-  for (const raw of text.split(String.fromCharCode(10))) {
-    const line = raw.trim();
-    if (!line) continue;
-    try {
-      const entry = JSON.parse(line);
-      if (entry.turn === true) {
-        if (turnSum > 0) {
-          void say(`本轮消耗 ¥${turnSum.toFixed(4)}`).catch(() => {});
-          turnSum = 0;
-        }
-      } else if (entry.selected_currency === 'CNY') {
-        const amount = Number(entry.selected_amount);
-        if (Number.isFinite(amount)) turnSum += amount;
-      }
-    } catch {
-      /* 忽略不完整行 */
-    }
   }
 }
 
@@ -604,9 +448,7 @@ function hasConfigKey(config) {
   return Boolean(String(config.apiKey || '').trim());
 }
 
-function hasEnvKey() {
-  return Boolean(String(process.env.DEEPSEEK_API_KEY || '').trim() || keyFromEnvFile());
-}
+
 
 function settingsData() {
   const config = loadConfig();
@@ -614,7 +456,7 @@ function settingsData() {
     refreshSec: Number(config.refreshSec) || DEFAULTS.refreshSec,
     alertThreshold: Number(config.alertThreshold) || 0,
     hasConfigKey: hasConfigKey(config),
-    hasEnvKey: hasEnvKey(),
+    hasEnvKey: false,
     clickSound: soundIdFromConfig(config),
     clickPressSound: soundIdForPhase(config, 'press'),
     clickReleaseSound: soundIdForPhase(config, 'release'),
@@ -728,11 +570,7 @@ function serveSound(res, id) {
 }
 
 function resolveChatKey(config) {
-  return (
-    String(config.chatApiKey || '').trim() ||
-    resolveApiKey(config) ||
-    readEnvValue('DEEPSEEK_API_KEY')
-  );
+  return String(config.chatApiKey || '').trim() || resolveApiKey(config);
 }
 
 function chatUrl(config) {
@@ -804,7 +642,6 @@ export function startBalanceService() {
   started = true;
   ensureDirs();
   const config = loadConfig();
-  initStats();
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
@@ -950,6 +787,11 @@ export function startBalanceService() {
       await say('今日已用已清零');
       return json(res, 200, { ok: true, ledger });
     }
+    if (url.pathname === '/shutdown' && req.method === 'POST') {
+      json(res, 200, { ok: true });
+      setTimeout(() => process.exit(0), 100);
+      return;
+    }
     return json(res, 404, { ok: false, error: 'not found' });
   });
 
@@ -962,5 +804,6 @@ export function startBalanceService() {
     void refresh().catch(() => {});
   }, 1500);
   applyRefreshInterval(config.refreshSec);
-  setInterval(pollStats, 2000);
 }
+
+startBalanceService();

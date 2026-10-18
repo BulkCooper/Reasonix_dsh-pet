@@ -1,0 +1,24 @@
+{
+  "petRuntime": {
+    "package": "dsh-pet@0.3.7",
+    "file": "pet-runtime.zip",
+    "sha256": "b9d5df03354c2355446139a0f9783489d980669329c2b111bb0784d83d27ff8e",
+    "bytes": 72686555
+  },
+  "electron": {
+    "version": "43.3.0",
+    "files": [
+      {
+        "file": "electron-1.zip",
+        "sha256": "f451bdb9667f124999a59672d6f3c7fc9724db7c9ccc65ecaa3cbd8d809c749c",
+        "bytes": 97027439
+      },
+      {
+        "file": "electron-2.zip",
+        "sha256": "01f20456dc7347107a3ba001a13c87ec99d819d3c70ee4948e1e0fc7017184d1",
+        "bytes": 33314829
+      }
+    ]
+  },
+  "notes": "Vendored runtime; extracted locally by scripts/install.mjs. No download at install or first start."
+}

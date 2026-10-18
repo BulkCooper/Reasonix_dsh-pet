@@ -5,11 +5,9 @@
  * 只把“发生了什么类型的事件”翻译成动画/气泡；不读取、不转发、不落盘任何用户内容。
  * 永远以 0 退出：hook 失败绝不能影响 Reasonix 的正常工具调用。
  */
-import { unlinkSync } from 'node:fs';
 import {
   ANIM,
   HOOK_STATE_FILE,
-  MANUAL_STOP_FILE,
   MESSAGES,
   isHealthy,
   loadState,
@@ -18,7 +16,7 @@ import {
   readJson,
   writeJson,
 } from './config.mjs';
-import { callApi, getReasonixMainPid, startPet } from './control.mjs';
+import { callApi, startPet, stopPet } from './control.mjs';
 
 /** Reasonix 事件 → dsh-pet 工作状态档位 */
 const EVENT_KIND = {
@@ -53,20 +51,24 @@ async function main() {
   const kind = EVENT_KIND[event];
   if (!kind) return;
 
+  // 生命周期只由 hook 驱动：会话结束就停止桌宠和本地面板服务
+  if (event === 'SessionEnd') {
+    try {
+      await stopPet();
+    } catch (error) {
+      logLine('hook', `SessionEnd 停止失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+    return;
+  }
+
   let state = loadState();
   let running = Boolean(state?.port) && (await isHealthy(state.port));
 
   if (!running) {
     // 只有 SessionStart 负责拉起桌宠；其它事件在桌宠未运行时直接跳过，不拖慢 Reasonix
     if (event !== 'SessionStart') return;
-    const manual = readJson(MANUAL_STOP_FILE);
-    if (manual) {
-      const currentApp = getReasonixMainPid();
-      if (currentApp && Number(manual.appPid) === currentApp) return; // 本应用实例内用户手动停过
-      try { unlinkSync(MANUAL_STOP_FILE); } catch { /* ignore */ } // 应用已重启，旧标记作废
-    }
     try {
-      await startPet({ quiet: true, waitMs: 8000, clearManual: false });
+      await startPet({ quiet: true, waitMs: 30000 });
     } catch (error) {
       logLine('hook', `SessionStart 启动失败：${error instanceof Error ? error.message : String(error)}`);
       return;

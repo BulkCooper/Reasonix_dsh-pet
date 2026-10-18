@@ -89,7 +89,7 @@ export const SETTINGS_HTML = `<!doctype html>
   </div>
 
   <h2>对话 API</h2>
-  <p class="sub">桌宠右键「对话 / 碎碎念」使用这个 OpenAI 兼容接口。API Key 留空会复用余额 key 或 .env 的 DEEPSEEK_API_KEY。</p>
+  <p class="sub">桌宠右键「对话 / 碎碎念」使用这个 OpenAI 兼容接口。API Key 留空会复用余额 key。</p>
   <label for="chatBaseUrl">Base URL</label>
   <input id="chatBaseUrl" type="text" placeholder="https://api.deepseek.com/v1">
   <label for="chatModel">模型</label>
@@ -303,15 +303,13 @@ export const SETTINGS_HTML = `<!doctype html>
     var d = await r.json();
     $('refreshSec').value = d.refreshSec;
     $('alertThreshold').value = d.alertThreshold;
-    $('keyState').textContent = d.hasConfigKey
-      ? '已保存到插件配置'
-      : (d.hasEnvKey ? '当前使用环境变量 / .env 中的 DEEPSEEK_API_KEY' : '未配置 key');
+    $('keyState').textContent = d.hasConfigKey ? '已保存到插件配置' : '未配置 key';
     $('chatBaseUrl').value = d.chatBaseUrl;
     $('chatModel').value = d.chatModel;
     $('chatPrompt').value = d.chatPrompt;
     $('chatKeyState').textContent = d.hasChatConfigKey
       ? '已保存到插件配置'
-      : (d.hasChatKey ? '使用余额 key / .env' : '未配置');
+      : (d.hasChatKey ? '使用余额 key' : '未配置');
     var s = await fetch('/status');
     try { await loadSounds(); } catch (e) {}
     var st = await s.json();

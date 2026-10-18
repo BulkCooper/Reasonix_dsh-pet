@@ -68,16 +68,14 @@ function printStatus(status) {
     return;
   }
   const { state, health, pets } = status;
-  console.log(`reasonix-pet 0.6.1 · dsh-pet ${petVersion()}`);
+  console.log(`reasonix-pet 2.0.0 · dsh-pet ${petVersion()}`);
   console.log(`  状态   运行中 · 端口 ${state.port} · pid ${state.pid} · 启动于 ${state.startedAt}`);
   if (health?.name) console.log(`  服务   ${health.name}（已运行 ${health.uptimeSec ?? '?'} 秒）`);
-  if (status.watchdog) {
-    console.log(`  看护   pid ${status.watchdog.pid}（Reasonix 主进程 ${status.watchdog.appPid ?? '按进程名'}，退出后自动停止桌宠）`);
-  } else if (status.agent) {
-    console.log(`  守护   agent pid ${status.agent.pid}（登录启动，Reasonix 退出后停止桌宠）`);
-  } else {
-    console.log('  看护   未启用（找不到 Reasonix Studio / 已设置 REASONIX_PET_NO_WATCHDOG=1）');
-  }
+  console.log(
+    status.balance
+      ? '  面板   本地余额/对话服务正常（127.0.0.1:34741）'
+      : '  面板   未运行（由 SessionStart hook 启动）',
+  );
   if (pets?.length) {
     console.log(`  宠物   ${pets.map((p) => `${p.id}(${p.name || '-'}, display=${p.display}, size=${p.size})`).join('  ')}`);
   } else {

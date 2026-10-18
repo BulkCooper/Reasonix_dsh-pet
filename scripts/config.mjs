@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendF
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
+import { spawnSync } from 'node:child_process';
 
 export const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const HOME_DIR = join(PLUGIN_ROOT, 'home');
@@ -17,9 +18,6 @@ export const STATE_DIR = join(PLUGIN_ROOT, 'state');
 export const LOG_DIR = join(STATE_DIR, 'logs');
 export const STATE_FILE = join(STATE_DIR, 'runtime.json');
 export const HOOK_STATE_FILE = join(STATE_DIR, 'hook-state.json');
-export const WATCHDOG_FILE = join(STATE_DIR, 'watchdog.json');
-export const MANUAL_STOP_FILE = join(STATE_DIR, 'manual-stop.json');
-export const AGENT_LOCK_FILE = join(STATE_DIR, 'agent.lock');
 export const BALANCE_CONFIG_FILE = join(HOME_DIR, 'balance-config.json');
 export const BALANCE_LEDGER_FILE = join(STATE_DIR, 'balance-ledger.json');
 export const CHAT_HISTORY_FILE = join(STATE_DIR, 'chat-history.json');
@@ -27,7 +25,11 @@ export const CHAT_HISTORY_FILE = join(STATE_DIR, 'chat-history.json');
 export const RUNTIME_ROOT = join(PLUGIN_ROOT, 'runtime');
 export const PET_PACKAGE_ROOT = join(RUNTIME_ROOT, 'node_modules', 'dsh-pet');
 export const STANDALONE_ENTRY = join(PET_PACKAGE_ROOT, 'lib', 'standalone.js');
-export const ENSURE_ELECTRON_ENTRY = join(PET_PACKAGE_ROOT, 'scripts', 'ensure-electron.mjs');
+export const VENDOR_DIR = join(PLUGIN_ROOT, 'vendor');
+export const PET_RUNTIME_ZIP = join(VENDOR_DIR, 'pet-runtime.zip');
+export const ELECTRON_ZIP_1 = join(VENDOR_DIR, 'electron-1.zip');
+export const ELECTRON_ZIP_2 = join(VENDOR_DIR, 'electron-2.zip');
+export const ELECTRON_EXE = join(HOME_DIR, 'electron', 'electron.exe');
 
 export const DEFAULT_PORT = 34740;
 export const PET_ID = 'main';
@@ -55,6 +57,33 @@ export function ensureDirs() {
   for (const dir of [STATE_DIR, LOG_DIR, join(HOME_DIR, 'dsh-pet')]) {
     mkdirSync(dir, { recursive: true });
   }
+}
+
+function extractZip(zip, dest) {
+  if (!existsSync(zip)) return false;
+  mkdirSync(dest, { recursive: true });
+  const quote = (value) => value.replace(/'/g, "''");
+  const command = `Expand-Archive -LiteralPath '${quote(zip)}' -DestinationPath '${quote(dest)}' -Force`;
+  const result = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', command], {
+    windowsHide: true,
+    stdio: 'ignore',
+    timeout: 120000,
+  });
+  return result.status === 0;
+}
+
+/** 固定版本运行时随包附带：本地解压 vendor/*.zip，不访问网络 */
+export function ensureRuntime() {
+  ensureDirs();
+  if (!existsSync(STANDALONE_ENTRY)) {
+    if (!extractZip(PET_RUNTIME_ZIP, RUNTIME_ROOT)) return false;
+  }
+  if (!existsSync(ELECTRON_EXE)) {
+    const electronDir = join(HOME_DIR, 'electron');
+    if (!extractZip(ELECTRON_ZIP_1, electronDir)) return false;
+    if (!extractZip(ELECTRON_ZIP_2, electronDir)) return false;
+  }
+  return existsSync(STANDALONE_ENTRY) && existsSync(ELECTRON_EXE);
 }
 
 export function readJson(file, fallback = null) {
