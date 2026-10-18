@@ -47,6 +47,16 @@ try {
 }
 
 const BALANCE_PORT = 34741;
+const HOST_PID = Number(process.env.DSH_PET_HOST_PID || 0);
+if (HOST_PID > 0) {
+  setInterval(() => {
+    try {
+      process.kill(HOST_PID, 0);
+    } catch {
+      process.exit(0);
+    }
+  }, 2000).unref?.();
+}
 const BEIJING_TZ = 'Asia/Shanghai';
 const MAX_ACCOUNTS = 10;
 const DEFAULT_ACCOUNT_ID = 'acc-default';

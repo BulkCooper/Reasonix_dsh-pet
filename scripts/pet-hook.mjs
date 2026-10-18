@@ -65,12 +65,12 @@ async function main() {
   let running = Boolean(state?.port) && (await isHealthy(state.port));
 
   if (!running) {
-    // 只有 SessionStart 负责拉起桌宠；其它事件在桌宠未运行时直接跳过，不拖慢 Reasonix
-    if (event !== 'SessionStart') return;
+    // SessionStart 负责应用启动；若 Reasonix 恢复旧会话没有触发 SessionStart，
+    // 第一个 prompt/tool 事件也会补拉起，避免“必须手动 pet.cmd start”。
     try {
       await startPet({ quiet: true, waitMs: 30000 });
     } catch (error) {
-      logLine('hook', `SessionStart 启动失败：${error instanceof Error ? error.message : String(error)}`);
+      logLine('hook', `${event} 启动失败：${error instanceof Error ? error.message : String(error)}`);
       return;
     }
     state = loadState();

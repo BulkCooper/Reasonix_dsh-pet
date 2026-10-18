@@ -6,7 +6,7 @@
  *   - 桌宠和本地面板服务都只由 Reasonix hook（SessionStart/SessionEnd）拉起和停止。
  *   - 不下载运行时；运行时由 vendor/*.zip 固定版本附带并在本地解压。
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -65,25 +65,55 @@ async function waitHealthy(port, waitMs) {
   return null;
 }
 
+function getHostPid() {
+  try {
+    const script =
+      "Get-Process 'Reasonix Studio' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Sort-Object Id | Select-Object -First 1 -ExpandProperty Id";
+    const output = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 4000,
+    }).trim();
+    const pid = Number(output);
+    if (Number.isInteger(pid) && pid > 0) return pid;
+  } catch {
+    /* fall through */
+  }
+  try {
+    const script =
+      "Get-Process 'Reasonix Studio' -ErrorAction SilentlyContinue | Sort-Object Id | Select-Object -First 1 -ExpandProperty Id";
+    const output = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 4000,
+    }).trim();
+    const pid = Number(output);
+    if (Number.isInteger(pid) && pid > 0) return pid;
+  } catch {
+    /* no host pid */
+  }
+  return 0;
+}
+
 async function waitBalance(waitMs = 8000) {
   const deadline = Date.now() + waitMs;
   while (Date.now() < deadline) {
     const response = await request(BALANCE_PORT, '/health', { timeout: 500 });
-    if (response.ok) return true;
+    if (response.ok && response.json && response.json.ok === true && !response.json.name) return true;
     await sleep(250);
   }
   return false;
 }
 
 /** 启动余额/对话面板服务；由 hook 的 SessionStart 触发，不常驻 */
-async function startBalance() {
+async function startBalance(hostPid) {
   if (await waitBalance(300)) return { ok: true, reused: true };
   const entry = join(PLUGIN_ROOT, 'scripts', 'balance.mjs');
   if (!existsSync(entry)) return { ok: false, error: 'balance.mjs missing' };
   const log = openLog('balance');
   const child = spawn(process.execPath, [entry], {
     cwd: PLUGIN_ROOT,
-    env: { ...process.env, DSH_HOME: HOME_DIR },
+    env: { ...process.env, DSH_HOME: HOME_DIR, DSH_PET_HOST_PID: hostPid ? String(hostPid) : '' },
     detached: true,
     windowsHide: true,
     stdio: ['ignore', log.fd, log.fd],
@@ -121,9 +151,10 @@ export async function startPet(options = {}) {
     throw new Error(`dsh-pet 运行时未安装：${STANDALONE_ENTRY} 不存在，请运行 pet.cmd install`);
   }
 
+  const hostPid = Number(options.hostPid) > 0 ? Number(options.hostPid) : getHostPid();
   const existing = loadState();
   if (existing?.port && (await isHealthy(existing.port))) {
-    const balance = await startBalance();
+    const balance = await startBalance(hostPid);
     const reused = { ...existing, balance: balance.ok, balancePid: balance.pid ?? existing.balancePid };
     saveState(reused);
     return { ...reused, reused: true };
@@ -138,7 +169,7 @@ export async function startPet(options = {}) {
       await sleep(250);
       const current = loadState();
       if (current?.port && (await isHealthy(current.port))) {
-        const balance = await startBalance();
+        const balance = await startBalance(hostPid);
         return { ...current, balance: balance.ok, reused: true };
       }
       if (lockIsStale()) break;
@@ -150,13 +181,14 @@ export async function startPet(options = {}) {
   }
 
   try {
-    const port = await findFreePort(DEFAULT_PORT);
+    let port = await findFreePort(DEFAULT_PORT);
+    while (port === BALANCE_PORT) port = await findFreePort(port + 1);
     if (!port) throw new Error(`找不到可用端口（从 ${DEFAULT_PORT} 开始尝试）`);
 
     const log = openLog('standalone');
     const child = spawn(process.execPath, [STANDALONE_ENTRY, '--port', String(port)], {
       cwd: PET_PACKAGE_ROOT,
-      env: { ...process.env, DSH_HOME: HOME_DIR },
+      env: { ...process.env, DSH_HOME: HOME_DIR, DSH_PET_HOST_PID: hostPid ? String(hostPid) : '' },
       detached: true,
       windowsHide: true,
       stdio: ['ignore', log.fd, log.fd],
@@ -169,6 +201,7 @@ export async function startPet(options = {}) {
       startedAt: new Date().toISOString(),
       log: log.file,
       pluginVersion: petVersion(),
+      hostPid,
     };
     saveState(state);
     logLine('control', `spawn pid=${child.pid} port=${port} log=${log.file}`);
@@ -178,7 +211,7 @@ export async function startPet(options = {}) {
       const output = tailLog(log.file);
       throw new Error(`桌宠服务启动超时（端口 ${port}）。日志：\n${output || '（无输出）'}`);
     }
-    const balance = await startBalance();
+    const balance = await startBalance(hostPid);
     const finalState = { ...state, balance: balance.ok, balancePid: balance.pid };
     saveState(finalState);
     if (!quiet) logLine('control', `balance ok=${balance.ok}`);

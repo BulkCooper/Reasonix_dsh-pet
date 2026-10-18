@@ -2,7 +2,7 @@
 
 把 [dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 桌宠适配到 Reasonix Studio 的插件。
 
-> 版本：`DSH_pet_reasonix 2.1.0`  
+> 版本：`DSH_pet_reasonix 2.1.1`  
 > 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/aaabd0573f00ae960b9d55a208e2b34d25df5890`  
 > 上游：`dsh-pet@0.3.7`（MIT），Electron `43.3.0`
 
@@ -18,9 +18,10 @@
 
 ## 合规说明（审核整改）
 
-- **生命周期**：只由 Reasonix hooks 控制。
+- **生命周期**：只由 Reasonix hooks 控制；并注入 Reasonix 主进程 PID，应用退出后桌宠/面板自退出（不是常驻 supervisor）。
   - `SessionStart`：启动桌宠和本地面板服务
   - `SessionEnd`：停止桌宠和本地面板服务
+  - 若恢复旧会话没有触发 SessionStart，第一个 prompt/tool 事件会补启动
   - 没有 Startup 文件夹条目、没有常驻 supervisor、没有独立 watchdog。
 - **运行时固定附带**：`vendor/*.zip` 内置 `dsh-pet@0.3.7` 与 Electron `43.3.0`。
   - 安装和首次启动都不访问 npm / Electron 镜像，不下载代码。

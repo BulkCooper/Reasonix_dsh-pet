@@ -6,7 +6,7 @@
  *   - 独立运行：DSH_HOME 指向插件自己的 home/，不碰用户已有的 ~/.dsh 配置与素材。
  *   - 所有状态落在插件目录，卸载插件即清理干净。
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync, openSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, appendFileSync, openSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
@@ -97,8 +97,15 @@ export function readJson(file, fallback = null) {
 export function writeJson(file, value) {
   ensureDirs();
   const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  renameSync(tmp, file);
+  const text = JSON.stringify(value, null, 2) + String.fromCharCode(10);
+  writeFileSync(tmp, text, 'utf8');
+  try {
+    renameSync(tmp, file);
+  } catch {
+    // Windows 并发 hook 可能短暂占用目标文件；退回直接覆盖，避免 EPERM 丢事件
+    writeFileSync(file, text, 'utf8');
+    try { unlinkSync(tmp); } catch { /* ignore */ }
+  }
 }
 
 export function loadState() {
