@@ -82,6 +82,8 @@ const DEFAULTS = {
   bubbleScale: 1,
   bubbleFontSize: 14,
   returnAnchor: null,
+  windowAnchor: null,
+  initialAnchor: null,
 };
 
 const PET_CONFIG_FILE = join(HOME_DIR, 'dsh-pet', 'main-config.jsonc');
@@ -331,6 +333,9 @@ function loadConfig() {
   const hasAccountsField = Array.isArray(source.accounts);
   const accounts = hasAccountsField ? normalizeAccounts(source.accounts) : migrateLegacyAccounts(config);
   const next = { ...config, accounts };
+  // 旧版只有一个 returnAnchor（用于窗口关闭/最小化）：迁移为 initialAnchor。
+  next.windowAnchor = normalizeReturnAnchor(next.windowAnchor);
+  next.initialAnchor = normalizeReturnAnchor(next.initialAnchor) || normalizeReturnAnchor(next.returnAnchor);
   if (!hasAccountsField || JSON.stringify(accounts) !== JSON.stringify(source.accounts)) {
     next.apiKey = '';
     next.accountNames = {};
@@ -1030,19 +1035,22 @@ export function startBalanceService() {
         petSize: readPetSize(config),
         bubbleScale: Number.isFinite(Number(config.bubbleScale)) ? Math.max(0.6, Math.min(2, Number(config.bubbleScale))) : DEFAULTS.bubbleScale,
         bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
-        returnAnchor: normalizeReturnAnchor(config.returnAnchor),
+        windowAnchor: normalizeReturnAnchor(config.windowAnchor),
+        initialAnchor: normalizeReturnAnchor(config.initialAnchor) || normalizeReturnAnchor(config.returnAnchor),
       });
     }
     if (url.pathname === '/return-anchor' && req.method === 'POST') {
       const body = await readJsonBody(req);
       const config = loadConfig();
+      const scope = body && body.scope === 'window' ? 'windowAnchor' : 'initialAnchor';
       const anchor = body && body.clear === true ? null : normalizeReturnAnchor(body);
       if (body && body.clear !== true && !anchor) {
         return json(res, 400, { ok: false, error: 'invalid anchor: expected {rx,ry} in 0..1' });
       }
-      config.returnAnchor = anchor;
+      config[scope] = anchor;
+      if (scope === 'initialAnchor') config.returnAnchor = anchor; // 兼容旧字段，clear 时不能让它回魂
       writeJson(BALANCE_CONFIG_FILE, config);
-      return json(res, 200, { ok: true, returnAnchor: anchor });
+      return json(res, 200, { ok: true, scope, windowAnchor: config.windowAnchor, initialAnchor: config.initialAnchor });
     }
     if (url.pathname === '/status') {
       return json(res, 200, {
