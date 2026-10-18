@@ -3,7 +3,7 @@
 把 [dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 桌宠适配到 Reasonix Studio 的插件。
 
 > 版本：`DSH_pet_reasonix 2.0.0`  
-> 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/COMMIT_PLACEHOLDER`  
+> 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/100ffb59409c9f4b54869380ecea64e332d838fb`  
 > 上游：`dsh-pet@0.3.7`（MIT），Electron `43.3.0`
 
 ## 功能
