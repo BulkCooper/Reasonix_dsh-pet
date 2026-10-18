@@ -81,6 +81,8 @@ const DEFAULTS = {
   petSize: 320,
   bubbleScale: 1,
   bubbleFontSize: 14,
+  hoverName: '',
+  maxMoveSpeed: 200,
   returnAnchor: null,
   windowAnchor: null,
   initialAnchor: null,
@@ -588,6 +590,8 @@ function configSummary(config) {
     petSize: readPetSize(config),
     bubbleScale: Number.isFinite(Number(config.bubbleScale)) ? Math.max(0.6, Math.min(2, Number(config.bubbleScale))) : DEFAULTS.bubbleScale,
     bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
+    hoverName: String(config.hoverName || '').trim().slice(0, 40),
+    maxMoveSpeed: Number.isFinite(Number(config.maxMoveSpeed)) ? Math.max(60, Math.min(800, Math.round(Number(config.maxMoveSpeed)))) : DEFAULTS.maxMoveSpeed,
     balanceUrl: accounts[0] ? accounts[0].balanceUrl : DEFAULTS.balanceUrl,
     hasApiKey: accountsHaveKey(config),
     accountCount: accounts.length,
@@ -708,6 +712,8 @@ function settingsData() {
     petSize: readPetSize(config),
     bubbleScale: Number.isFinite(Number(config.bubbleScale)) ? Math.max(0.6, Math.min(2, Number(config.bubbleScale))) : DEFAULTS.bubbleScale,
     bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
+    hoverName: String(config.hoverName || '').trim().slice(0, 40),
+    maxMoveSpeed: Number.isFinite(Number(config.maxMoveSpeed)) ? Math.max(60, Math.min(800, Math.round(Number(config.maxMoveSpeed)))) : DEFAULTS.maxMoveSpeed,
     hasConfigKey: accountsHaveKey(config),
     hasEnvKey: false,
     accounts: publicAccounts(config),
@@ -854,6 +860,9 @@ function saveSettings(body) {
   if (Number.isFinite(bubbleScale)) next.bubbleScale = Math.max(0.6, Math.min(2, bubbleScale));
   const bubbleFontSize = Number(body.bubbleFontSize);
   if (Number.isFinite(bubbleFontSize)) next.bubbleFontSize = Math.max(10, Math.min(30, Math.round(bubbleFontSize)));
+  if (typeof body.hoverName === 'string') next.hoverName = body.hoverName.trim().slice(0, 40);
+  const maxMoveSpeed = Number(body.maxMoveSpeed);
+  if (Number.isFinite(maxMoveSpeed)) next.maxMoveSpeed = Math.max(60, Math.min(800, Math.round(maxMoveSpeed)));
   if (typeof body.clickSound === 'string' && allSounds().some((sound) => sound.id === body.clickSound)) {
     next.clickSound = body.clickSound;
   }
@@ -1035,6 +1044,8 @@ export function startBalanceService() {
         petSize: readPetSize(config),
         bubbleScale: Number.isFinite(Number(config.bubbleScale)) ? Math.max(0.6, Math.min(2, Number(config.bubbleScale))) : DEFAULTS.bubbleScale,
         bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
+    hoverName: String(config.hoverName || '').trim().slice(0, 40),
+    maxMoveSpeed: Number.isFinite(Number(config.maxMoveSpeed)) ? Math.max(60, Math.min(800, Math.round(Number(config.maxMoveSpeed)))) : DEFAULTS.maxMoveSpeed,
         windowAnchor: normalizeReturnAnchor(config.windowAnchor),
         initialAnchor: normalizeReturnAnchor(config.initialAnchor) || normalizeReturnAnchor(config.returnAnchor),
       });

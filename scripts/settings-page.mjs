@@ -79,6 +79,9 @@ export const SETTINGS_HTML = `<!doctype html>
   <label for="autoReturnDelaySec">被拖走后等待（秒）</label>
   <input id="autoReturnDelaySec" type="number" min="0" step="1" value="60">
   <div class="hint">拖拽结束至少等待这么久，桌宠才会自动归位；0 = 立即归位。</div>
+  <label for="maxMoveSpeed">最大移动速度（px/s）</label>
+  <input id="maxMoveSpeed" type="number" min="60" max="800" step="10" value="200">
+  <div class="hint">自动归位的巡航速度；加速度固定 500 px/s²。</div>
   <div class="hint">右键桌宠 →「回归位置」二级菜单可指定当前位置为窗口回归位置。</div>
   <div class="row">
     <button id="resetWindowAnchor" class="secondary" type="button">恢复默认窗口回归位置</button>
@@ -96,6 +99,9 @@ export const SETTINGS_HTML = `<!doctype html>
   <label for="bubbleFontSize">文字大小（px）</label>
   <input id="bubbleFontSize" type="number" min="10" max="30" step="1" value="14">
   <div class="hint">独立于弹窗大小；最多 2 秒生效。</div>
+  <label for="hoverName">鼠标悬停名称</label>
+  <input id="hoverName" type="text" maxlength="40" placeholder="留空 = 宠物名称">
+  <div class="hint">只改变鼠标悬停提示，不改宠物配置里的名字。</div>
 
   <h2>点击音效</h2>
   <p class="sub">分别选择「按下」和「松开」的音效；也可以导入本地音频并裁剪。保存后下一次点击立即使用。</p>
@@ -516,9 +522,11 @@ export const SETTINGS_HTML = `<!doctype html>
       $('alertThreshold').value = d.alertThreshold;
       $('autoReturnEnabled').checked = d.autoReturnEnabled !== false;
       $('autoReturnDelaySec').value = d.autoReturnDelaySec;
+      $('maxMoveSpeed').value = d.maxMoveSpeed;
       $('petSize').value = d.petSize;
       $('bubbleScale').value = d.bubbleScale;
       $('bubbleFontSize').value = d.bubbleFontSize;
+      $('hoverName').value = d.hoverName || '';
       $('chatBaseUrl').value = d.chatBaseUrl || '';
       $('chatModel').value = d.chatModel || '';
       $('chatPrompt').value = d.chatPrompt || '';
@@ -549,9 +557,11 @@ export const SETTINGS_HTML = `<!doctype html>
       alertThreshold: Number($('alertThreshold').value),
       autoReturnEnabled: $('autoReturnEnabled').checked,
       autoReturnDelaySec: Number($('autoReturnDelaySec').value),
+      maxMoveSpeed: Number($('maxMoveSpeed').value),
       petSize: Number($('petSize').value),
       bubbleScale: Number($('bubbleScale').value),
       bubbleFontSize: Number($('bubbleFontSize').value),
+      hoverName: $('hoverName').value,
       clickPressSound: $('pressSound').value,
       clickReleaseSound: $('releaseSound').value,
       clickSound: $('pressSound').value,
