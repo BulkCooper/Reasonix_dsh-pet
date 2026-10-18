@@ -39,6 +39,7 @@ export const SETTINGS_HTML = `<!doctype html>
   .account-row input[type=checkbox] { width: auto; flex: 0 0 auto; }
   .account-row input.account-name { flex: 1; width: auto; padding: 4px 8px; font-size: 13px; }
   .account-row .account-value { flex: 0 0 auto; }
+  select { width: 100%; padding: 10px 12px; border: 1px solid #d9dee8; border-radius: 8px; font-size: 14px; background: #fff; }
 </style>
 </head>
 <body>
@@ -57,14 +58,24 @@ export const SETTINGS_HTML = `<!doctype html>
   <label for="alertThreshold">余额预警阈值（元，0 = 关闭）</label>
   <input id="alertThreshold" type="number" min="0" step="0.01" value="10">
 
-  <h2>双击音效</h2>
-  <p class="sub">选中一个音效作为双击音效；也可以导入本地音频并裁剪。保存后下一次双击立即使用。</p>
-  <div id="sounds" class="sound-list">加载中…</div>
+  <h2>点击音效</h2>
+  <p class="sub">分别选择「按下」和「松开」的音效；也可以导入本地音频并裁剪。保存后下一次点击立即使用。</p>
+  <label for="pressSound">按下音效</label>
+  <select id="pressSound"></select>
+  <div class="row">
+    <button id="previewPress" class="secondary">试听按下</button>
+  </div>
+  <label for="releaseSound">松开音效</label>
+  <select id="releaseSound"></select>
+  <div class="row">
+    <button id="previewRelease" class="secondary">试听松开</button>
+  </div>
   <div class="row">
     <input id="soundFile" type="file" accept="audio/*">
     <button id="importSound" class="secondary">导入音频…</button>
-    <button id="previewSound" class="secondary">试听选中</button>
   </div>
+  <label for="trimSource">裁剪源音效</label>
+  <select id="trimSource"></select>
   <div class="trim">
     <label for="trimStart">裁剪起止（秒）</label>
     <div class="row">
@@ -72,7 +83,7 @@ export const SETTINGS_HTML = `<!doctype html>
       <input id="trimEnd" type="number" min="0" step="0.01" placeholder="结束">
       <button id="trimSound" class="secondary">裁剪并保存</button>
     </div>
-    <div class="hint">起止时间按选中音效的实际时长填写；裁剪结果会保存为 WAV 自定义音效。</div>
+    <div class="hint">起止时间按裁剪源音效的实际时长填写；裁剪结果会保存为 WAV 自定义音效。</div>
   </div>
 
   <div class="row">
@@ -108,15 +119,16 @@ export const SETTINGS_HTML = `<!doctype html>
     $('status').textContent = JSON.stringify(data, null, 2);
   }
   var soundMap = {};
-  function selectedSoundId() {
-    var el = document.querySelector('input[name=clickSound]:checked');
-    return el ? el.value : '';
-  }
-  function selectSound(id) {
-    var radios = document.querySelectorAll('input[name=clickSound]');
-    for (var i = 0; i < radios.length; i++) {
-      if (radios[i].value === id) radios[i].checked = true;
-    }
+  function fillSelect(select, sounds, selected) {
+    var current = select.value;
+    select.innerHTML = '';
+    sounds.forEach(function (sound) {
+      var option = document.createElement('option');
+      option.value = sound.id;
+      option.textContent = sound.name + (sound.builtin ? '（内置）' : '');
+      select.appendChild(option);
+    });
+    select.value = selected || current || (sounds[0] && sounds[0].id) || '';
   }
   function playSoundUrl(url) {
     try {
@@ -126,35 +138,12 @@ export const SETTINGS_HTML = `<!doctype html>
     } catch (e) {}
   }
   async function loadSounds() {
-    var r = await fetch('/sounds');
-    var d = await r.json();
+    var d = await fetch('/sounds').then(function (r) { return r.json(); });
     soundMap = {};
-    var box = $('sounds');
-    box.innerHTML = '';
-    d.sounds.forEach(function (sound) {
-      soundMap[sound.id] = sound;
-      var row = document.createElement('label');
-      row.className = 'sound-row';
-      var radio = document.createElement('input');
-      radio.type = 'radio';
-      radio.name = 'clickSound';
-      radio.value = sound.id;
-      radio.checked = sound.id === d.selected;
-      var name = document.createElement('span');
-      name.textContent = sound.name + (sound.builtin ? '（内置）' : '');
-      var play = document.createElement('button');
-      play.type = 'button';
-      play.className = 'secondary';
-      play.textContent = '试听';
-      play.onclick = function (e) {
-        e.preventDefault();
-        playSoundUrl(sound.url);
-      };
-      row.appendChild(radio);
-      row.appendChild(name);
-      row.appendChild(play);
-      box.appendChild(row);
-    });
+    d.sounds.forEach(function (sound) { soundMap[sound.id] = sound; });
+    fillSelect($('pressSound'), d.sounds, d.press);
+    fillSelect($('releaseSound'), d.sounds, d.release);
+    fillSelect($('trimSource'), d.sounds, d.press);
   }
   function writeString(view, offset, value) {
     for (var i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
@@ -208,19 +197,23 @@ export const SETTINGS_HTML = `<!doctype html>
     var d = await r.json();
     if (d.ok) {
       await loadSounds();
-      selectSound(d.sound.id);
-      $('message').textContent = '已导入「' + d.sound.name + '」，点保存生效';
+      $('trimSource').value = d.sound.id;
+      $('message').textContent = '已导入「' + d.sound.name + '」，可在下拉中选择，点保存生效';
     } else {
       $('message').textContent = '导入失败：' + (d.error || '');
     }
     $('soundFile').value = '';
   };
-  $('previewSound').onclick = function () {
-    var id = selectedSoundId();
+  $('previewPress').onclick = function () {
+    var id = $('pressSound').value;
+    if (id && soundMap[id]) playSoundUrl(soundMap[id].url);
+  };
+  $('previewRelease').onclick = function () {
+    var id = $('releaseSound').value;
     if (id && soundMap[id]) playSoundUrl(soundMap[id].url);
   };
   $('trimSound').onclick = async function () {
-    var id = selectedSoundId();
+    var id = $('trimSource').value;
     if (!id || !soundMap[id]) {
       $('message').textContent = '先选中一个音效';
       return;
@@ -255,8 +248,8 @@ export const SETTINGS_HTML = `<!doctype html>
       ctx.close();
       if (d.ok) {
         await loadSounds();
-        selectSound(d.sound.id);
-        $('message').textContent = '裁剪完成，点保存生效';
+        $('trimSource').value = d.sound.id;
+        $('message').textContent = '裁剪完成，可在下拉中选择，点保存生效';
       } else {
         $('message').textContent = '裁剪保存失败：' + (d.error || '');
       }
@@ -324,7 +317,9 @@ export const SETTINGS_HTML = `<!doctype html>
       clearApiKey: $('clearKey').checked,
       refreshSec: Number($('refreshSec').value),
       alertThreshold: Number($('alertThreshold').value),
-      clickSound: selectedSoundId(),
+      clickPressSound: $('pressSound').value,
+      clickReleaseSound: $('releaseSound').value,
+      clickSound: $('pressSound').value,
       chatBaseUrl: $('chatBaseUrl').value,
       chatModel: $('chatModel').value,
       chatApiKey: $('chatApiKey').value,

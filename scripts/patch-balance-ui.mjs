@@ -25,7 +25,13 @@ let changed = false;
 
 const doubleClickMethod =
   "  onBalanceDoubleClick() {\n" +
-  "    const playSound = (src) => {\n" +
+  "    fetch('http://127.0.0.1:34741/double-click', { method: 'POST' }).catch(() => {});\n" +
+  "  }\n\n";
+
+const playSoundMethod =
+  "  playConfiguredSound(phase) {\n" +
+  "    const fallback = phase === 'release' ? 'click-2.mp3' : 'click-1.mp3';\n" +
+  "    const play = (src) => {\n" +
   "      try {\n" +
   "        const audio = new Audio(src);\n" +
   "        audio.volume = 0.85;\n" +
@@ -34,11 +40,10 @@ const doubleClickMethod =
   "        /* ignore */\n" +
   "      }\n" +
   "    };\n" +
-  "    fetch('http://127.0.0.1:34741/click-sound')\n" +
+  "    fetch('http://127.0.0.1:34741/click-sound?phase=' + phase)\n" +
   "      .then((response) => (response.ok ? response.json() : null))\n" +
-  "      .then((data) => playSound(data && data.url ? data.url : 'click-1.mp3'))\n" +
-  "      .catch(() => playSound('click-1.mp3'));\n" +
-  "    fetch('http://127.0.0.1:34741/double-click', { method: 'POST' }).catch(() => {});\n" +
+  "      .then((data) => play(data && data.url ? data.url : fallback))\n" +
+  "      .catch(() => play(fallback));\n" +
   "  }\n\n";
 
 // ---- 双击 ----
@@ -75,14 +80,31 @@ if (!source.includes('onBalanceDoubleClick')) {
   changed = true;
 }
 
-// ---- 双击音效：旧的随机/单音效改为跟随设置 ----
-if (!source.includes('34741/click-sound')) {
-  const methodStart = source.indexOf('  onBalanceDoubleClick() {');
-  const menuAt = source.indexOf('  // ---- 右键菜单', methodStart);
-  if (methodStart >= 0 && menuAt > methodStart) {
-    source = source.slice(0, methodStart) + doubleClickMethod + source.slice(menuAt);
+// ---- 双击方法：只保留余额请求（声音改由按下/松开触发） ----
+if (!source.includes('http://127.0.0.1:34741/double-click')) {
+  source = source.replace(/  onBalanceDoubleClick\(\) \{[\s\S]*?\n  \}\r?\n/, doubleClickMethod);
+  changed = true;
+}
+
+// ---- 按下 / 松开音效 ----
+if (!source.includes('playConfiguredSound(phase)')) {
+  const at = source.indexOf('  onBalanceDoubleClick() {');
+  if (at >= 0) {
+    source = source.slice(0, at) + playSoundMethod + source.slice(at);
     changed = true;
   }
+}
+if (!source.includes("playConfiguredSound('press')")) {
+  source = source.replace(/(  onPointerDown\(e\) \{[\s\S]*?    if \(e\.button !== 0\) return;)(\r?\n)/, function (_match, head, nl) {
+    return head + nl + "    this.playConfiguredSound('press');" + nl;
+  });
+  changed = true;
+}
+if (!source.includes("playConfiguredSound('release')")) {
+  source = source.replace(/(  onClick\(\) \{[\s\S]*?    if \(d\.active \|\| d\.dragging \|\| this\.justDragged\) return;)(\r?\n)/, function (_match, head, nl) {
+    return head + nl + "    this.playConfiguredSound('release');" + nl;
+  });
+  changed = true;
 }
 
 // ---- 右键：刷新余额 ----

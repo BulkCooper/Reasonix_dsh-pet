@@ -49,6 +49,8 @@ const DEFAULTS = {
   refreshSec: 60,
   alertThreshold: 10,
   clickSound: 'builtin:click-1',
+  clickPressSound: 'builtin:click-1',
+  clickReleaseSound: 'builtin:click-2',
   chatBaseUrl: 'https://api.deepseek.com/v1',
   chatApiKey: '',
   chatModel: 'deepseek-chat',
@@ -90,9 +92,26 @@ function allSounds() {
   return [...BUILTIN_SOUNDS, ...customSounds()];
 }
 
+function soundIdForPhase(config, phase) {
+  const available = new Set(allSounds().map((sound) => sound.id));
+  const pick = (id) => (id && available.has(id) ? id : '');
+  if (phase === 'press') {
+    return pick(config.clickPressSound) || pick(config.clickSound) || DEFAULTS.clickPressSound;
+  }
+  const direct = pick(config.clickReleaseSound);
+  if (direct) return direct;
+  const press = pick(config.clickPressSound) || pick(config.clickSound) || DEFAULTS.clickPressSound;
+  const pair =
+    press === 'builtin:click-1'
+      ? 'builtin:click-2'
+      : press === 'builtin:click-3'
+        ? 'builtin:click-4'
+        : press;
+  return pick(pair) || DEFAULTS.clickReleaseSound;
+}
+
 function soundIdFromConfig(config) {
-  const id = String(config.clickSound || DEFAULTS.clickSound);
-  return allSounds().some((sound) => sound.id === id) ? id : DEFAULTS.clickSound;
+  return soundIdForPhase(config, 'press');
 }
 
 function soundUrl(id) {
@@ -107,9 +126,11 @@ function soundPath(id) {
 }
 
 function soundListPayload(config) {
-  const selected = soundIdFromConfig(config);
+  const press = soundIdForPhase(config, 'press');
+  const release = soundIdForPhase(config, 'release');
   return {
-    selected,
+    press,
+    release,
     sounds: allSounds().map((sound) => ({
       id: sound.id,
       name: sound.name,
@@ -584,6 +605,8 @@ function settingsData() {
     hasConfigKey: hasConfigKey(config),
     hasEnvKey: hasEnvKey(),
     clickSound: soundIdFromConfig(config),
+    clickPressSound: soundIdForPhase(config, 'press'),
+    clickReleaseSound: soundIdForPhase(config, 'release'),
     chatBaseUrl: String(config.chatBaseUrl || DEFAULTS.chatBaseUrl),
     chatModel: String(config.chatModel || DEFAULTS.chatModel),
     chatPrompt: String(config.chatPrompt || DEFAULTS.chatPrompt),
@@ -611,6 +634,12 @@ function saveSettings(body) {
   if (Number.isFinite(alertThreshold)) next.alertThreshold = Math.max(0, alertThreshold);
   if (typeof body.clickSound === 'string' && allSounds().some((sound) => sound.id === body.clickSound)) {
     next.clickSound = body.clickSound;
+  }
+  if (typeof body.clickPressSound === 'string' && allSounds().some((sound) => sound.id === body.clickPressSound)) {
+    next.clickPressSound = body.clickPressSound;
+  }
+  if (typeof body.clickReleaseSound === 'string' && allSounds().some((sound) => sound.id === body.clickReleaseSound)) {
+    next.clickReleaseSound = body.clickReleaseSound;
   }
   if (typeof body.chatBaseUrl === 'string' && body.chatBaseUrl.trim()) next.chatBaseUrl = body.chatBaseUrl.trim();
   if (typeof body.chatModel === 'string' && body.chatModel.trim()) next.chatModel = body.chatModel.trim();
@@ -809,9 +838,21 @@ export function startBalanceService() {
     }
     if (url.pathname === '/click-sound' && req.method === 'GET') {
       const config = loadConfig();
-      const id = soundIdFromConfig(config);
+      const phase = url.searchParams.get('phase') === 'release' ? 'release' : 'press';
+      const id = soundIdForPhase(config, phase);
       const sound = allSounds().find((item) => item.id === id) || BUILTIN_SOUNDS[0];
-      return json(res, 200, { id: sound.id, name: sound.name, url: soundUrl(sound.id) });
+      return json(res, 200, { id: sound.id, name: sound.name, phase, url: soundUrl(sound.id) });
+    }
+    if (url.pathname === '/click-sounds' && req.method === 'GET') {
+      const config = loadConfig();
+      const pressId = soundIdForPhase(config, 'press');
+      const releaseId = soundIdForPhase(config, 'release');
+      const press = allSounds().find((item) => item.id === pressId) || BUILTIN_SOUNDS[0];
+      const release = allSounds().find((item) => item.id === releaseId) || BUILTIN_SOUNDS[1];
+      return json(res, 200, {
+        press: { id: press.id, name: press.name, url: soundUrl(press.id) },
+        release: { id: release.id, name: release.name, url: soundUrl(release.id) },
+      });
     }
     if (url.pathname === '/sound' && req.method === 'GET') {
       return serveSound(res, url.searchParams.get('id'));
