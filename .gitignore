@@ -1,8 +1,8 @@
 runtime/node_modules/
 runtime/package-lock.json
-runtime/package.json
 home/electron/
 home/logs/
 state/
 *.log
-*.bak*
+
+home/balance-config.json

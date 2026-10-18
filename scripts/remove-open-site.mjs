@@ -29,6 +29,10 @@ if (!existsSync(sprite)) {
 }
 
 const source = readFileSync(sprite, 'utf8');
+if (source.includes("label: '刷新余额'")) {
+  console.log('open-site menu entry already removed.');
+  process.exit(0);
+}
 if (/^[ \t]*const tools = \[\];/m.test(source)) {
   console.log('open-site menu entry already removed.');
   process.exit(0);

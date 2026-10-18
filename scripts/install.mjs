@@ -92,6 +92,17 @@ if (!agentOnly) {
     console.error('[install] menu patch failed; inspect scripts/remove-open-site.mjs.');
     process.exit(1);
   }
+
+  console.log('[install] applying balance UI patch ...');
+  const balancePatch = spawnSync(
+    process.execPath,
+    [join(PLUGIN_ROOT, 'scripts', 'patch-balance-ui.mjs')],
+    { stdio: 'inherit' },
+  );
+  if (balancePatch.status !== 0) {
+    console.error('[install] balance UI patch failed; inspect scripts/patch-balance-ui.mjs.');
+    process.exit(1);
+  }
 }
 
 ensureDirs();

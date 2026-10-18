@@ -1,8 +1,8 @@
 {
   "apiVersion": "reasonix.io/plugin/v2",
   "name": "DSH_pet_reasonix",
-  "version": "1.0.0",
-  "description": "将 dsh-pet 大肥鱼桌宠移植到 Reasonix Studio：桌面透明宠物、会话事件联动、随 Reasonix 进程自动启停。",
+  "version": "1.1.0",
+  "description": "将 dsh-pet 大肥鱼桌宠移植到 Reasonix Studio：余额显示/今日已用/峰谷/每轮消耗、会话事件联动、随 Reasonix 进程自动启停。",
   "contributes": {
     "skills": [
       "skills"

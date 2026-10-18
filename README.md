@@ -67,6 +67,21 @@ pet.cmd stop
 - `pet.cmd stop` 会同时结束看护进程。
 - 想让桌宠常驻（不随应用退出）：设置 `REASONIX_PET_NO_WATCHDOG=1` 后再启动。
 
+## 余额功能（DeepSeek）
+
+- **双击宠物**：播放音效，并显示余额气泡（总余额 / 赠金 / 今日已用 / 峰谷）
+- **右键「刷新余额」**：立即刷新
+- **右键「设置」**：打开设置页，编辑 API key、刷新间隔和余额预警阈值
+- **60 秒自动刷新**：可在设置页修改（保存后定时器立即切换）
+- **余额预警**：低于阈值（默认 10 元）时气泡 + 余额动画，1 小时内不重复
+- **今日已用**：按余额下降累计；充值/赠金上升单独记录，不冲掉消费
+- **简单峰谷**：工作日 9:00–12:00、14:00–18:00 高峰，其余及周末谷价
+- **每轮消耗**：读取 Reasonix `stats/*.jsonl` 的 `selected_amount`，每轮结束气泡显示
+- **API key**：可在设置页保存到 `home/balance-config.json`，也可使用环境变量或 `%APPDATA%/reasonix/.env` 中的 `DEEPSEEK_API_KEY`
+- 数据：`state/balance-ledger.json`；配置模板：`home/balance-config.example.json`
+- Kaspersky/本地代理：服务会自动并入系统根证书（不关闭证书校验）
+- 双击音效来自 DeepSeek-Balance-Whale-Widget（MIT）
+
 ## 事件联动
 
 | Reasonix hook | 桌宠状态 |
@@ -91,12 +106,18 @@ pet.cmd stop
   该文件是 dsh-pet 的构建产物，升级/重装 dsh-pet 后会被覆盖；重新运行
   `node scripts/remove-open-site.mjs`（幂等），然后 `pet.cmd restart`。
 
+- `runtime/electron-helper/sprite.js`：双击余额、右键「刷新余额」「设置」与双击音效。
+  升级/重装 dsh-pet 后重新运行 `node scripts/patch-balance-ui.mjs`（幂等），然后 `pet.cmd restart`。
+
 ## 目录
 
 ```
 reasonix-plugin.json        Reasonix 原生插件清单（skills/commands/hooks）
 pet.cmd / pet-hook.cmd      Windows 入口
 scripts/install.mjs         安装 dsh-pet 运行时并打菜单补丁
+scripts/balance.mjs         余额查询、今日已用、预警、峰谷与每轮消耗
+scripts/settings-page.mjs   设置页
+scripts/patch-balance-ui.mjs 双击余额/右键刷新/设置/音效补丁
 scripts/agent.mjs           登录时 supervisor：快速拉起/停止桌宠
 scripts/                    控制、hook 桥接、看护与共享配置
 home/dsh-pet/main-config.jsonc  独立配置（DSH_HOME 隔离）

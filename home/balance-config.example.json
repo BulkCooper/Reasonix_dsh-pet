@@ -1,0 +1,6 @@
+{
+  "apiKey": "",
+  "balanceUrl": "https://api.deepseek.com/user/balance",
+  "refreshSec": 60,
+  "alertThreshold": 10
+}
