@@ -7,7 +7,7 @@ export const SETTINGS_HTML = `<!doctype html>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; background: #f4f6fb; color: #202124; font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; }
-  .wrap { max-width: 560px; margin: 42px auto; background: #fff; border-radius: 16px; padding: 28px 30px 24px; box-shadow: 0 12px 40px rgba(30, 40, 80, .1); }
+  .wrap { max-width: 620px; margin: 42px auto; background: #fff; border-radius: 16px; padding: 28px 30px 24px; box-shadow: 0 12px 40px rgba(30, 40, 80, .1); }
   h1 { margin: 0 0 6px; font-size: 20px; }
   h2 { margin: 26px 0 8px; font-size: 15px; color: #333; }
   .sub { margin: 0 0 18px; color: #777; font-size: 12px; line-height: 1.6; }
@@ -17,10 +17,11 @@ export const SETTINGS_HTML = `<!doctype html>
   .hint { margin-top: 6px; color: #888; font-size: 12px; line-height: 1.5; }
   .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-weight: 400; color: #555; }
   .check input { width: auto; }
-  .row { display: flex; gap: 10px; margin-top: 22px; }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
   button { padding: 10px 20px; border: 0; border-radius: 8px; background: #4b7bec; color: #fff; font-size: 14px; cursor: pointer; }
   button.secondary { background: #eef2f9; color: #345; }
-  button:hover { filter: brightness(.96); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button:hover:not(:disabled) { filter: brightness(.96); }
   #message { min-height: 20px; margin-top: 14px; color: #2c8a4b; font-size: 13px; }
   pre { background: #f7f9fd; border: 1px solid #e8edf6; border-radius: 10px; padding: 12px; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
   code { background: #f1f4fa; padding: 1px 5px; border-radius: 4px; }
@@ -32,27 +33,39 @@ export const SETTINGS_HTML = `<!doctype html>
   .trim { margin-top: 10px; }
   .trim .row { margin-top: 8px; }
   #soundFile { display: none; }
-  .account-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; }
-  .account-value { color: #4b7bec; }
   input[type=text], textarea { width: 100%; padding: 10px 12px; border: 1px solid #d9dee8; border-radius: 8px; font-size: 14px; outline: none; font-family: inherit; }
   textarea { resize: vertical; line-height: 1.5; }
-  .account-row input[type=checkbox] { width: auto; flex: 0 0 auto; }
-  .account-row input.account-name { flex: 1; width: auto; padding: 4px 8px; font-size: 13px; }
-  .account-row .account-value { flex: 0 0 auto; }
   select { width: 100%; padding: 10px 12px; border: 1px solid #d9dee8; border-radius: 8px; font-size: 14px; background: #fff; }
   .savebar { position: sticky; bottom: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; background: #fff; padding: 12px 0; border-top: 1px solid #e6e9f0; z-index: 20; }
   .savebar #message { margin-left: auto; color: #5b6472; font-size: 13px; }
+  .account-list { display: flex; flex-direction: column; gap: 10px; }
+  .account-card { border: 1px solid #e6ebf4; border-radius: 10px; padding: 12px; background: #fbfcff; }
+  .account-head { display: flex; align-items: center; gap: 8px; }
+  .account-head input.account-name { flex: 1 1 auto; min-width: 0; }
+  .account-state { flex: 0 0 auto; font-size: 12px; color: #5b6472; background: #eef2f9; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+  .account-state.ok { background: #e8f6ee; color: #1f7a45; }
+  .account-state.bad { background: #fdecec; color: #a33; }
+  .account-del { flex: 0 0 auto; padding: 6px 12px; font-size: 12px; background: #fdecec; color: #a33; }
+  .account-card .field-row { display: flex; gap: 10px; }
+  .account-card .field-col { flex: 1 1 0; min-width: 0; }
+  .account-card label { margin: 10px 0 4px; font-size: 12px; color: #555; }
+  .account-card input[type=text], .account-card input[type=password] { padding: 8px 10px; font-size: 13px; }
+  .account-empty { color: #8a93a2; font-size: 13px; padding: 10px 0; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Reasonix 桌宠 · 余额设置</h1>
-  <p class="sub">保存后立即生效；API key 只保存在本机 <code>home/balance-config.json</code>，不会写日志。留空表示继续使用现有的 key 或 Reasonix 的 <code>.env</code>。</p>
+  <p class="sub">保存后立即生效。API key 只保存在本机 <code>home/balance-config.json</code>，不会写日志，也不会通过接口返回；本插件不读取 Reasonix 的 <code>.env</code> / <code>config.toml</code> / <code>stats</code>，也不读取其他组件的凭证。账户只能在这里手动添加。</p>
 
-  <label for="apiKey">DeepSeek API Key</label>
-  <input id="apiKey" type="password" placeholder="sk-...（留空 = 不改动 / 使用 .env）" autocomplete="off">
-  <div class="hint" id="keyState">读取中…</div>
-  <label class="check"><input id="clearKey" type="checkbox"> 清除已保存的 key（改用环境变量 / .env）</label>
+  <h2>余额账户</h2>
+  <p class="sub">最多 10 个账户，可分别填写名称、余额接口 URL 和 API key。勾选「气泡显示」的账户会出现在双击气泡里；第一个查到余额的账户作为主账户，驱动余额预警和今日已用。</p>
+  <div id="accounts" class="account-list"></div>
+  <div class="row">
+    <button id="addAccount" class="secondary" type="button">新建账户</button>
+    <span class="hint" id="accountSummary">加载中…</span>
+  </div>
+  <div class="hint">余额接口只接受 http(s) 地址，默认 <code>https://api.deepseek.com/user/balance</code>。key 输入框留空 = 保留已保存的 key；删除账户会同时删除它的 key。</div>
 
   <label for="refreshSec">自动刷新间隔（秒）</label>
   <input id="refreshSec" type="number" min="15" step="1" value="60">
@@ -65,16 +78,16 @@ export const SETTINGS_HTML = `<!doctype html>
   <label for="pressSound">按下音效</label>
   <select id="pressSound"></select>
   <div class="row">
-    <button id="previewPress" class="secondary">试听按下</button>
+    <button id="previewPress" class="secondary" type="button">试听按下</button>
   </div>
   <label for="releaseSound">松开音效</label>
   <select id="releaseSound"></select>
   <div class="row">
-    <button id="previewRelease" class="secondary">试听松开</button>
+    <button id="previewRelease" class="secondary" type="button">试听松开</button>
   </div>
   <div class="row">
     <input id="soundFile" type="file" accept="audio/*">
-    <button id="importSound" class="secondary">导入音频…</button>
+    <button id="importSound" class="secondary" type="button">导入音频…</button>
   </div>
   <label for="trimSource">裁剪源音效</label>
   <select id="trimSource"></select>
@@ -83,13 +96,13 @@ export const SETTINGS_HTML = `<!doctype html>
     <div class="row">
       <input id="trimStart" type="number" min="0" step="0.01" value="0" placeholder="开始">
       <input id="trimEnd" type="number" min="0" step="0.01" placeholder="结束">
-      <button id="trimSound" class="secondary">裁剪并保存</button>
+      <button id="trimSound" class="secondary" type="button">裁剪并保存</button>
     </div>
     <div class="hint">起止时间按裁剪源音效的实际时长填写；裁剪结果会保存为 WAV 自定义音效。</div>
   </div>
 
   <h2>对话 API</h2>
-  <p class="sub">桌宠右键「对话 / 碎碎念」使用这个 OpenAI 兼容接口。API Key 留空会复用余额 key。</p>
+  <p class="sub">桌宠右键「对话 / 碎碎念」使用这个 OpenAI 兼容接口。对话 API Key 留空会复用第一个有 key 的账户。</p>
   <label for="chatBaseUrl">Base URL</label>
   <input id="chatBaseUrl" type="text" placeholder="https://api.deepseek.com/v1">
   <label for="chatModel">模型</label>
@@ -101,18 +114,14 @@ export const SETTINGS_HTML = `<!doctype html>
   <label for="chatPrompt">人设 / 系统提示词</label>
   <textarea id="chatPrompt" rows="3"></textarea>
 
-  <h2>账户</h2>
-  <div id="accounts" class="sound-list">加载中…</div>
-  <div class="hint">勾选要显示在余额气泡中的账户；名字留空使用默认名称。</div>
-
   <h2>当前状态</h2>
   <pre id="status">加载中…</pre>
 </div>
   <div class="savebar">
     <button id="save" disabled>保存设置</button>
-    <button id="refresh" class="secondary">立即刷新余额</button>
-    <button id="clearSpent" class="secondary">清除今日已用</button>
-    <button id="close" class="secondary">关闭</button>
+    <button id="refresh" class="secondary" type="button">立即刷新余额</button>
+    <button id="clearSpent" class="secondary" type="button">清除今日已用</button>
+    <button id="close" class="secondary" type="button">关闭</button>
     <span id="message"></span>
   </div>
 
@@ -120,10 +129,17 @@ export const SETTINGS_HTML = `<!doctype html>
   var $ = function (id) { return document.getElementById(id); };
   var settingsReady = false;
   var saving = false;
+  var loadFailed = false;
+  var maxAccounts = 10;
+  var defaultBalanceUrl = '';
+  var soundMap = {};
+
+  function errText(error) {
+    return error && error.message ? error.message : String(error);
+  }
   function showStatus(data) {
     $('status').textContent = JSON.stringify(data, null, 2);
   }
-  var soundMap = {};
   function fillSelect(select, sounds, selected) {
     var current = select.value;
     select.innerHTML = '';
@@ -189,6 +205,192 @@ export const SETTINGS_HTML = `<!doctype html>
     }
     return new Blob([ab], { type: 'audio/wav' });
   }
+
+  /* ---------------- 账户区 ---------------- */
+  function statusText(status) {
+    var value = String(status || '');
+    if (value === 'ok') return '已查询';
+    if (value === 'no-key') return '未配置 key';
+    if (value === 'no-url') return '未填接口';
+    if (value === 'timeout') return '查询超时';
+    if (value === 'network') return '网络错误';
+    if (value === 'bad-response') return '接口异常';
+    if (value === 'http-401' || value === 'http-403') return 'key 无效';
+    if (value.indexOf('http-') === 0) return 'HTTP ' + value.slice(5);
+    return '查询失败';
+  }
+  function accountCards() {
+    return document.querySelectorAll('#accounts .account-card');
+  }
+  function updateAccountSummary() {
+    var count = accountCards().length;
+    $('accountSummary').textContent = count + ' / ' + maxAccounts + ' 个账户';
+    $('addAccount').disabled = count >= maxAccounts;
+  }
+  function setAccountState(card, text, tone) {
+    var badge = card.querySelector('.account-state');
+    if (!badge) return;
+    badge.textContent = text;
+    badge.className = 'account-state' + (tone ? ' ' + tone : '');
+  }
+  function makeLabel(text) {
+    var label = document.createElement('label');
+    label.textContent = text;
+    return label;
+  }
+  function accountCard(account) {
+    var a = account || {};
+    var card = document.createElement('div');
+    card.className = 'account-card';
+    card.setAttribute('data-id', a.id || '');
+    card.setAttribute('data-has-key', a.hasKey ? '1' : '');
+
+    var head = document.createElement('div');
+    head.className = 'account-head';
+
+    var name = document.createElement('input');
+    name.type = 'text';
+    name.className = 'account-name';
+    name.maxLength = 40;
+    name.placeholder = '账户名称';
+    name.value = a.name || '';
+
+    var badge = document.createElement('span');
+    badge.className = 'account-state';
+    badge.textContent = a.hasKey ? '已保存 key' : '未配置 key';
+
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'account-del';
+    del.textContent = '删除';
+    del.onclick = function () {
+      if (card.parentNode) card.parentNode.removeChild(card);
+      if (!accountCards().length) {
+        var note = document.createElement('div');
+        note.className = 'account-empty';
+        note.textContent = '还没有账户。点下方「新建账户」添加第一个余额账户。';
+        $('accounts').appendChild(note);
+      }
+      updateAccountSummary();
+      $('message').textContent = '已移除该账户，点「保存设置」后生效';
+    };
+
+    head.appendChild(name);
+    head.appendChild(badge);
+    head.appendChild(del);
+
+    var fields = document.createElement('div');
+    fields.className = 'field-row';
+
+    var urlCol = document.createElement('div');
+    urlCol.className = 'field-col';
+    var url = document.createElement('input');
+    url.type = 'text';
+    url.className = 'account-url';
+    url.placeholder = defaultBalanceUrl || 'https://api.deepseek.com/user/balance';
+    url.value = a.balanceUrl || '';
+    urlCol.appendChild(makeLabel('余额接口 URL'));
+    urlCol.appendChild(url);
+
+    var keyCol = document.createElement('div');
+    keyCol.className = 'field-col';
+    var key = document.createElement('input');
+    key.type = 'password';
+    key.className = 'account-key';
+    key.autocomplete = 'new-password';
+    key.placeholder = a.hasKey ? '留空 = 保留原 key' : 'sk-...';
+    keyCol.appendChild(makeLabel('API key'));
+    keyCol.appendChild(key);
+
+    fields.appendChild(urlCol);
+    fields.appendChild(keyCol);
+
+    var check = document.createElement('label');
+    check.className = 'check';
+    var visible = document.createElement('input');
+    visible.type = 'checkbox';
+    visible.className = 'account-visible';
+    visible.checked = a.visible !== false;
+    check.appendChild(visible);
+    check.appendChild(document.createTextNode(' 气泡里显示这个账户'));
+
+    card.appendChild(head);
+    card.appendChild(fields);
+    card.appendChild(check);
+    return card;
+  }
+  function renderAccounts(list) {
+    var box = $('accounts');
+    box.innerHTML = '';
+    if (!list.length) {
+      var empty = document.createElement('div');
+      empty.className = 'account-empty';
+      empty.textContent = '还没有账户。点下方「新建账户」添加第一个余额账户。';
+      box.appendChild(empty);
+    } else {
+      list.forEach(function (account) { box.appendChild(accountCard(account)); });
+    }
+    updateAccountSummary();
+  }
+  function collectAccounts() {
+    var cards = accountCards();
+    var list = [];
+    for (var i = 0; i < cards.length; i += 1) {
+      var card = cards[i];
+      var nameInput = card.querySelector('.account-name');
+      var urlInput = card.querySelector('.account-url');
+      var keyInput = card.querySelector('.account-key');
+      var visInput = card.querySelector('.account-visible');
+      list.push({
+        id: card.getAttribute('data-id') || '',
+        name: nameInput ? nameInput.value : '',
+        balanceUrl: urlInput ? urlInput.value : '',
+        key: keyInput ? keyInput.value : '',
+        visible: visInput ? visInput.checked : true
+      });
+    }
+    return list;
+  }
+  function applyAccountStatus(accounts) {
+    var map = {};
+    (accounts || []).forEach(function (account) {
+      if (account && account.id) map[account.id] = account;
+    });
+    var cards = accountCards();
+    for (var i = 0; i < cards.length; i += 1) {
+      var card = cards[i];
+      var id = card.getAttribute('data-id');
+      var live = id ? map[id] : null;
+      if (live && live.status === 'ok') {
+        var money = '¥' + Number(live.total).toFixed(2);
+        if (live.currency && live.currency !== 'CNY') money += ' ' + live.currency;
+        setAccountState(card, money, 'ok');
+      } else if (live) {
+        setAccountState(card, statusText(live.status), 'bad');
+      } else if (card.getAttribute('data-has-key') === '1') {
+        setAccountState(card, '待查询', '');
+      } else {
+        setAccountState(card, '未配置 key', '');
+      }
+    }
+  }
+  $('addAccount').onclick = function () {
+    if (accountCards().length >= maxAccounts) {
+      $('message').textContent = '最多只能添加 ' + maxAccounts + ' 个账户';
+      return;
+    }
+    var box = $('accounts');
+    var empty = box.querySelector('.account-empty');
+    if (empty) box.removeChild(empty);
+    var card = accountCard({ name: '', balanceUrl: '', visible: true, hasKey: false });
+    box.appendChild(card);
+    updateAccountSummary();
+    var input = card.querySelector('.account-name');
+    if (input) input.focus();
+    $('message').textContent = '已新增一行，填好后点「保存设置」';
+  };
+
+  /* ---------------- 音效 ---------------- */
   $('importSound').onclick = function () { $('soundFile').click(); };
   $('soundFile').onchange = async function () {
     var file = $('soundFile').files[0];
@@ -259,73 +461,61 @@ export const SETTINGS_HTML = `<!doctype html>
         $('message').textContent = '裁剪保存失败：' + (d.error || '');
       }
     } catch (err) {
-      $('message').textContent = '裁剪失败：' + (err && err.message ? err.message : err);
+      $('message').textContent = '裁剪失败：' + errText(err);
     }
   };
-  function renderAccounts(accounts) {
-    var box = $('accounts');
-    box.innerHTML = '';
-    if (!accounts.length) {
-      box.textContent = '未发现账户';
-      return;
+
+  /* ---------------- 读取 / 保存 ---------------- */
+  async function loadStatus() {
+    try {
+      var res = await fetch('/status');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var st = await res.json();
+      showStatus(st);
+      applyAccountStatus(st.accounts);
+    } catch (error) {
+      $('status').textContent = '状态读取失败：' + errText(error);
     }
-    accounts.forEach(function (a) {
-      var row = document.createElement('div');
-      row.className = 'account-row';
-      var check = document.createElement('input');
-      check.type = 'checkbox';
-      check.name = 'accountVisible';
-      check.value = a.id;
-      check.checked = a.visible !== false;
-      var name = document.createElement('input');
-      name.type = 'text';
-      name.className = 'account-name';
-      name.name = 'accountName';
-      name.setAttribute('data-id', a.id);
-      name.value = a.customName || '';
-      name.placeholder = a.defaultName || a.name || '';
-      var val = document.createElement('span');
-      val.className = 'account-value';
-      if (a.status === 'ok') val.textContent = '¥' + Number(a.total).toFixed(2) + ' ' + (a.currency || '');
-      else if (a.status === 'no-balance-api') val.textContent = '无余额接口';
-      else if (a.status === 'no-key') val.textContent = '未配置 key';
-      else val.textContent = '查询失败';
-      row.appendChild(check);
-      row.appendChild(name);
-      row.appendChild(val);
-      box.appendChild(row);
-    });
   }
   async function load() {
     settingsReady = false;
+    loadFailed = false;
     $('save').disabled = true;
-    var r = await fetch('/settings/data');
-    var d = await r.json();
-    $('refreshSec').value = d.refreshSec;
-    $('alertThreshold').value = d.alertThreshold;
-    $('keyState').textContent = d.hasConfigKey ? '已保存到插件配置' : '未配置 key';
-    $('chatBaseUrl').value = d.chatBaseUrl;
-    $('chatModel').value = d.chatModel;
-    $('chatPrompt').value = d.chatPrompt;
-    $('chatKeyState').textContent = d.hasChatConfigKey
-      ? '已保存到插件配置'
-      : (d.hasChatKey ? '使用余额 key' : '未配置');
-    var s = await fetch('/status');
-    try { await loadSounds(); } catch (e) {}
-    var st = await s.json();
-    showStatus(st);
-    renderAccounts(st.accounts || []);
-    settingsReady = true;
-    $('save').disabled = false;
+    try {
+      var res = await fetch('/settings/data');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var d = await res.json();
+      if (!d || typeof d !== 'object') throw new Error('返回内容不是 JSON');
+      maxAccounts = Number(d.maxAccounts) || 10;
+      defaultBalanceUrl = d.defaultBalanceUrl || '';
+      $('refreshSec').value = d.refreshSec;
+      $('alertThreshold').value = d.alertThreshold;
+      $('chatBaseUrl').value = d.chatBaseUrl || '';
+      $('chatModel').value = d.chatModel || '';
+      $('chatPrompt').value = d.chatPrompt || '';
+      $('chatKeyState').textContent = d.hasChatConfigKey
+        ? '已保存对话专用 key'
+        : (d.hasChatKey ? '复用账户 key' : '未配置');
+      renderAccounts(Array.isArray(d.accounts) ? d.accounts : []);
+      try { await loadSounds(); } catch (error) { /* 音效列表失败不影响设置编辑 */ }
+      await loadStatus();
+    } catch (error) {
+      loadFailed = true;
+      $('accountSummary').textContent = '账户读取失败';
+      $('message').textContent = '读取设置失败：' + errText(error) + '。本次保存不会提交账户列表。';
+    } finally {
+      // 读取失败也要恢复可编辑和保存按钮，避免页面卡死
+      settingsReady = true;
+      $('save').disabled = false;
+    }
   }
+
   $('save').onclick = async function () {
     if (!settingsReady || saving) return;
     saving = true;
     $('save').disabled = true;
     $('message').textContent = '保存中…';
     var body = {
-      apiKey: $('apiKey').value,
-      clearApiKey: $('clearKey').checked,
       refreshSec: Number($('refreshSec').value),
       alertThreshold: Number($('alertThreshold').value),
       clickPressSound: $('pressSound').value,
@@ -335,53 +525,51 @@ export const SETTINGS_HTML = `<!doctype html>
       chatModel: $('chatModel').value,
       chatApiKey: $('chatApiKey').value,
       clearChatApiKey: $('clearChatKey').checked,
-      chatPrompt: $('chatPrompt').value,
-      accountVisibility: (function () {
-        var map = {};
-        var inputs = document.querySelectorAll('input[name=accountVisible]');
-        for (var i = 0; i < inputs.length; i++) map[inputs[i].value] = inputs[i].checked;
-        return map;
-      })(),
-      accountNames: (function () {
-        var map = {};
-        var inputs = document.querySelectorAll('input[name=accountName]');
-        for (var i = 0; i < inputs.length; i++) map[inputs[i].getAttribute('data-id')] = inputs[i].value;
-        return map;
-      })()
+      chatPrompt: $('chatPrompt').value
     };
+    // 账户读取失败时不提交账户列表，避免把服务器上已有的账户误删
+    if (!loadFailed) body.accounts = collectAccounts();
     try {
-      var r = await fetch('/settings', {
+      var res = await fetch('/settings', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body)
       });
-      var d = await r.json();
-      if (d.ok) {
-        $('apiKey').value = '';
-        $('clearKey').checked = false;
-        $('chatApiKey').value = '';
-        $('clearChatKey').checked = false;
-        $('message').textContent = '已保存';
-        await load();
-        $('message').textContent = '已保存';
-      } else {
-        $('message').textContent = '保存失败：' + (d.error || '未知错误');
+      var d = null;
+      try { d = await res.json(); } catch (error) { d = null; }
+      if (!res.ok || !d || !d.ok) {
+        throw new Error((d && d.error) || ('HTTP ' + res.status));
       }
-    } catch (e) {
-      $('message').textContent = '保存失败：' + e.message;
+      $('chatApiKey').value = '';
+      $('clearChatKey').checked = false;
+      var note = '已保存';
+      if (Array.isArray(d.warnings) && d.warnings.length) note += '（' + d.warnings.join('；') + '）';
+      await load();
+      $('message').textContent = note;
+    } catch (error) {
+      $('message').textContent = '保存失败：' + errText(error);
     } finally {
       saving = false;
       $('save').disabled = !settingsReady;
     }
   };
+
   $('refresh').onclick = async function () {
+    if (saving) return;
+    $('refresh').disabled = true;
     $('message').textContent = '刷新中…';
-    await fetch('/refresh', { method: 'POST' });
-    $('message').textContent = '已刷新';
-    await load();
+    try {
+      await fetch('/refresh', { method: 'POST' });
+      await loadStatus();
+      $('message').textContent = '已刷新余额';
+    } catch (error) {
+      $('message').textContent = '刷新失败：' + errText(error);
+    } finally {
+      $('refresh').disabled = false;
+    }
   };
   $('clearSpent').onclick = async function () {
-    if (!settingsReady) return;
+    if (!settingsReady || saving) return;
     if (!confirm('确定清除今日已用记录？')) return;
     $('clearSpent').disabled = true;
     $('message').textContent = '清除中…';
@@ -389,9 +577,9 @@ export const SETTINGS_HTML = `<!doctype html>
       var r = await fetch('/ledger/clear', { method: 'POST' });
       var d = await r.json();
       $('message').textContent = d.ok ? '今日已用已清零' : '清除失败';
-      if (d.ok) await load();
-    } catch (e) {
-      $('message').textContent = '清除失败：' + e.message;
+      if (d.ok) await loadStatus();
+    } catch (error) {
+      $('message').textContent = '清除失败：' + errText(error);
     } finally {
       $('clearSpent').disabled = false;
     }
