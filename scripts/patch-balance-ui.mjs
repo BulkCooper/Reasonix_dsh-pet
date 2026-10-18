@@ -23,9 +23,23 @@ if (!existsSync(sprite)) {
 let source = readFileSync(sprite, 'utf8');
 let changed = false;
 
-const clickAudioCode =
-  "      const clickSounds = ['click-1.mp3', 'click-2.mp3', 'click-3.mp3', 'click-4.mp3'];\n" +
-  "      const audio = new Audio(clickSounds[Math.floor(Math.random() * clickSounds.length)]);\n";
+const doubleClickMethod =
+  "  onBalanceDoubleClick() {\n" +
+  "    const playSound = (src) => {\n" +
+  "      try {\n" +
+  "        const audio = new Audio(src);\n" +
+  "        audio.volume = 0.85;\n" +
+  "        audio.play().catch(() => {});\n" +
+  "      } catch {\n" +
+  "        /* ignore */\n" +
+  "      }\n" +
+  "    };\n" +
+  "    fetch('http://127.0.0.1:34741/click-sound')\n" +
+  "      .then((response) => (response.ok ? response.json() : null))\n" +
+  "      .then((data) => playSound(data && data.url ? data.url : 'click-1.mp3'))\n" +
+  "      .catch(() => playSound('click-1.mp3'));\n" +
+  "    fetch('http://127.0.0.1:34741/double-click', { method: 'POST' }).catch(() => {});\n" +
+  "  }\n\n";
 
 // ---- 双击 ----
 if (!source.includes('onBalanceDoubleClick')) {
@@ -57,26 +71,18 @@ if (!source.includes('onBalanceDoubleClick')) {
     console.error('menu anchor not found; inspect sprite.js manually.');
     process.exit(1);
   }
-  const method =
-    "  onBalanceDoubleClick() {\n" +
-    "    try {\n" +
-    clickAudioCode +
-    "      audio.volume = 0.85;\n" +
-    "      audio.play().catch(() => {});\n" +
-    "    } catch {\n" +
-    "      /* ignore */\n" +
-    "    }\n" +
-    "    fetch('http://127.0.0.1:34741/double-click', { method: 'POST' }).catch(() => {});\n" +
-    "  }\n\n";
-  source = source.slice(0, menuAt) + method + source.slice(menuAt);
+  source = source.slice(0, menuAt) + doubleClickMethod + source.slice(menuAt);
   changed = true;
 }
 
-// ---- 双击音效：旧版单音效升级为四音效随机 ----
-const oldAudio = "      const audio = new Audio('balance-double-click.mp3');";
-if (source.includes(oldAudio)) {
-  source = source.replace(oldAudio, clickAudioCode.trimEnd());
-  changed = true;
+// ---- 双击音效：旧的随机/单音效改为跟随设置 ----
+if (!source.includes('34741/click-sound')) {
+  const methodStart = source.indexOf('  onBalanceDoubleClick() {');
+  const menuAt = source.indexOf('  // ---- 右键菜单', methodStart);
+  if (methodStart >= 0 && menuAt > methodStart) {
+    source = source.slice(0, methodStart) + doubleClickMethod + source.slice(menuAt);
+    changed = true;
+  }
 }
 
 // ---- 右键：刷新余额 ----
@@ -110,6 +116,23 @@ if (!source.includes("leaf.action === 'settings'")) {
     "      return;\n" +
     "    }\n";
   source = source.slice(0, refreshAt) + settingsAction + source.slice(refreshAt);
+  changed = true;
+}
+
+// ---- 对话 / 碎碎念：改用余额服务的可配置对话 API ----
+if (source.includes('this.showWhisperFromMenu();')) {
+  source = source.replace(
+    'this.showWhisperFromMenu();',
+    "fetch('http://127.0.0.1:34741/whisper', { method: 'POST' }).catch(() => {});",
+  );
+  changed = true;
+}
+if (source.includes('this.showChatFromMenu();')) {
+  source = source.replace(
+    'this.showChatFromMenu();',
+    "const message = window.prompt('和桌宠说点什么？');\n" +
+      "      if (message) fetch('http://127.0.0.1:34741/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) }).catch(() => {});",
+  );
   changed = true;
 }
 

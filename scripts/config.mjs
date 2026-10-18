@@ -22,6 +22,7 @@ export const MANUAL_STOP_FILE = join(STATE_DIR, 'manual-stop.json');
 export const AGENT_LOCK_FILE = join(STATE_DIR, 'agent.lock');
 export const BALANCE_CONFIG_FILE = join(HOME_DIR, 'balance-config.json');
 export const BALANCE_LEDGER_FILE = join(STATE_DIR, 'balance-ledger.json');
+export const CHAT_HISTORY_FILE = join(STATE_DIR, 'chat-history.json');
 
 export const RUNTIME_ROOT = join(PLUGIN_ROOT, 'runtime');
 export const PET_PACKAGE_ROOT = join(RUNTIME_ROOT, 'node_modules', 'dsh-pet');

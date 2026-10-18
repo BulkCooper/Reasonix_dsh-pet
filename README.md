@@ -83,6 +83,8 @@ pet.cmd stop
 - 数据：`state/balance-ledger.json`；配置模板：`home/balance-config.example.json`
 - Kaspersky/本地代理：服务会自动并入系统根证书（不关闭证书校验）
 - 四个双击音效（D1/D2/Ya1/Ya2）来自 DeepSeek-Balance-Whale-Widget（MIT）
+- **所有账户**：读取 Reasonix `config.toml` 的 providers，显示 DeepSeek / qlty / SCNet / MiMo / 国家科技研究院 / Qwen 本地等；有余额接口的显示余额，没有的显示「—」
+- **对话 API**：设置页配置 Base URL / 模型 / API Key / 人设；右键「对话」「碎碎念」使用它，对话记忆保存在 `state/chat-history.json`
 
 ## 事件联动
 

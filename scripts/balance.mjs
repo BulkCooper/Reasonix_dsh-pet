@@ -11,11 +11,14 @@
  */
 import { createServer } from 'node:http';
 import * as tls from 'node:tls';
-import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
+import { basename, extname, join } from 'node:path';
 import {
   BALANCE_CONFIG_FILE,
   BALANCE_LEDGER_FILE,
+  CHAT_HISTORY_FILE,
+  HOME_DIR,
+  PLUGIN_ROOT,
   ensureDirs,
   logLine,
   readJson,
@@ -45,12 +48,80 @@ const DEFAULTS = {
   balanceUrl: 'https://api.deepseek.com/user/balance',
   refreshSec: 60,
   alertThreshold: 10,
+  clickSound: 'builtin:click-1',
+  chatBaseUrl: 'https://api.deepseek.com/v1',
+  chatApiKey: '',
+  chatModel: 'deepseek-chat',
+  chatPrompt: '你是一只住在 Reasonix 桌面上的蓝发小女仆桌宠，说话自然、简短、温柔带点俏皮；不要提你是 AI。',
 };
+
+
+const SOUNDS_DIR = join(HOME_DIR, 'click-sounds');
+const SOUNDS_INDEX_FILE = join(SOUNDS_DIR, 'sounds.json');
+const SOUND_EXT = new Set(['.mp3', '.wav', '.ogg', '.m4a']);
+const BUILTIN_SOUNDS = [
+  { id: 'builtin:click-1', name: '音效1·按下', file: 'click-1.mp3' },
+  { id: 'builtin:click-2', name: '音效1·松开', file: 'click-2.mp3' },
+  { id: 'builtin:click-3', name: '小黄鸭·按下', file: 'click-3.mp3' },
+  { id: 'builtin:click-4', name: '小黄鸭·松开', file: 'click-4.mp3' },
+];
+
+function ensureSoundsDir() {
+  mkdirSync(SOUNDS_DIR, { recursive: true });
+}
+
+function customSounds() {
+  ensureSoundsDir();
+  const index = readJson(SOUNDS_INDEX_FILE, {});
+  return readdirSync(SOUNDS_DIR)
+    .filter((file) => SOUND_EXT.has(extname(file).toLowerCase()))
+    .sort()
+    .map((file) => ({
+      id: `custom:${file}`,
+      name: (index[file] && index[file].name) || basename(file, extname(file)),
+      file,
+      custom: true,
+    }));
+}
+
+function allSounds() {
+  return [...BUILTIN_SOUNDS, ...customSounds()];
+}
+
+function soundIdFromConfig(config) {
+  const id = String(config.clickSound || DEFAULTS.clickSound);
+  return allSounds().some((sound) => sound.id === id) ? id : DEFAULTS.clickSound;
+}
+
+function soundUrl(id) {
+  return `http://127.0.0.1:${BALANCE_PORT}/sound?id=${encodeURIComponent(id)}`;
+}
+
+function soundPath(id) {
+  const sound = allSounds().find((item) => item.id === id);
+  if (!sound) return null;
+  if (sound.custom) return join(SOUNDS_DIR, basename(sound.file));
+  return join(PLUGIN_ROOT, 'assets', sound.file);
+}
+
+function soundListPayload(config) {
+  const selected = soundIdFromConfig(config);
+  return {
+    selected,
+    sounds: allSounds().map((sound) => ({
+      id: sound.id,
+      name: sound.name,
+      builtin: !sound.custom,
+      url: soundUrl(sound.id),
+    })),
+  };
+}
 
 let started = false;
 let refreshing = null;
 let lastSnapshot = null;
 let lastLedger = null;
+let lastAccounts = [];
 let refreshTimer = null;
 
 function loadConfig() {
@@ -59,17 +130,17 @@ function loadConfig() {
   return { ...DEFAULTS, ...readJson(BALANCE_CONFIG_FILE, {}) };
 }
 
-function keyFromEnvFile() {
+function readEnvValue(name) {
   const appData = process.env.APPDATA || '';
   for (const file of [join(appData, 'reasonix', '.env'), join(appData, 'reasonix', '.env.local')]) {
     try {
       for (const raw of readFileSync(file, 'utf8').split(String.fromCharCode(10))) {
         const line = raw.trim().replace(/^export\s+/, '');
-        const match = /^DEEPSEEK_API_KEY\s*=\s*(.*)$/.exec(line);
-        if (match) {
-          const value = match[1].trim().replace(/^['"]|['"]$/g, '');
-          if (value) return value;
-        }
+        const eq = line.indexOf('=');
+        if (eq < 0) continue;
+        if (line.slice(0, eq).trim() !== name) continue;
+        const value = line.slice(eq + 1).trim().replace(/^['"]|['"]$/g, '');
+        if (value) return value;
       }
     } catch {
       /* ignore */
@@ -78,11 +149,121 @@ function keyFromEnvFile() {
   return '';
 }
 
+function keyFromEnvFile() {
+  return readEnvValue('DEEPSEEK_API_KEY');
+}
+
 function resolveApiKey(config) {
   return (
     String(config.apiKey || '').trim() ||
     String(process.env.DEEPSEEK_API_KEY || '').trim() ||
     keyFromEnvFile()
+  );
+}
+
+function readProviders() {
+  const file = join(process.env.APPDATA || '', 'reasonix', 'config.toml');
+  let text;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    return [];
+  }
+  const providers = [];
+  let current = null;
+  for (const raw of text.split(String.fromCharCode(10))) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    if (line.startsWith('[[')) {
+      if (current) providers.push(current);
+      current = line === '[[providers]]' ? {} : null;
+      continue;
+    }
+    if (line.startsWith('[') || !current) continue;
+    const eq = line.indexOf('=');
+    if (eq < 0) continue;
+    const key = line.slice(0, eq).trim();
+    if (!['name', 'display_name', 'api_key_env', 'balance_url', 'base_url', 'billing_currency'].includes(key)) continue;
+    let value = line.slice(eq + 1).trim();
+    const hash = value.indexOf('#');
+    if (hash >= 0) value = value.slice(0, hash).trim();
+    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+    current[key] = value;
+  }
+  if (current) providers.push(current);
+  return providers;
+}
+
+function friendlyName(provider) {
+  const key = provider.api_key_env || '';
+  if (key === 'DEEPSEEK_API_KEY') return 'DeepSeek';
+  if (key === 'QLTY_API_KEY') return 'qlty';
+  if (key === 'SCNET_API_KEY') return 'SCNet';
+  if (key === 'MIMO_TOKEN_PLAN_API_KEY') return 'MiMo';
+  if (key === 'DISCOVERY_API_API_KEY') return provider.display_name || 'Discovery';
+  if (key.startsWith('REASONIX_CONNECTION_')) return provider.display_name || '本地模型';
+  return provider.display_name || provider.name || key;
+}
+
+function accountGroups() {
+  const map = new Map();
+  for (const provider of readProviders()) {
+    if (!provider.api_key_env) continue;
+    const balanceUrl = provider.balance_url || '';
+    const id = `${provider.api_key_env}|${balanceUrl}`;
+    if (!map.has(id)) {
+      map.set(id, {
+        id,
+        name: friendlyName(provider),
+        keyEnv: provider.api_key_env,
+        balanceUrl,
+        baseUrl: provider.base_url || '',
+        providers: [],
+      });
+    }
+    const name = provider.name || provider.display_name || provider.api_key_env;
+    if (!map.get(id).providers.includes(name)) map.get(id).providers.push(name);
+  }
+  return [...map.values()];
+}
+
+async function refreshAccounts(config) {
+  const accounts = accountGroups();
+  return Promise.all(
+    accounts.map(async (account) => {
+      const key =
+        account.keyEnv === 'DEEPSEEK_API_KEY' ? resolveApiKey(config) : readEnvValue(account.keyEnv);
+      if (!key) {
+        return { ...account, status: 'no-key', total: null, bonus: null, recharge: null, currency: '' };
+      }
+      if (!account.balanceUrl) {
+        return { ...account, status: 'no-balance-api', total: null, bonus: null, recharge: null, currency: '' };
+      }
+      try {
+        const response = await fetch(account.balanceUrl, {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!response.ok) {
+          return { ...account, status: `http-${response.status}`, total: null, bonus: null, recharge: null, currency: '' };
+        }
+        const data = await response.json();
+        const info = pickBalanceInfo(data && data.balance_infos);
+        if (!info || !Number.isFinite(Number(info.total_balance))) {
+          return { ...account, status: 'no-data', total: null, bonus: null, recharge: null, currency: '' };
+        }
+        return {
+          ...account,
+          status: 'ok',
+          total: Number(info.total_balance),
+          bonus: numberOrNull(info.granted_balance),
+          recharge: numberOrNull(info.topped_up_balance),
+          currency: String(info.currency || 'CNY'),
+        };
+      } catch {
+        return { ...account, status: 'error', total: null, bonus: null, recharge: null, currency: '' };
+      }
+    }),
   );
 }
 
@@ -202,12 +383,18 @@ function errorText(reason) {
   return `余额查询失败：${reason}`;
 }
 
-async function showSnapshot(snapshot, ledger, config) {
+async function showSnapshot(snapshot, ledger, config, accounts = []) {
   const peak = peakInfo();
   const lines = [];
-  let balanceLine = `余额 ¥${money(snapshot.total)}`;
-  if (snapshot.bonus !== null && snapshot.bonus > 0) balanceLine += `（赠金 ¥${money(snapshot.bonus)}）`;
-  lines.push(balanceLine);
+  if (accounts.length) {
+    for (const account of accounts) {
+      lines.push(`${account.name} ${account.status === 'ok' ? `¥${money(account.total)}` : '—'}`);
+    }
+  } else {
+    let balanceLine = `余额 ¥${money(snapshot.total)}`;
+    if (snapshot.bonus !== null && snapshot.bonus > 0) balanceLine += `（赠金 ¥${money(snapshot.bonus)}）`;
+    lines.push(balanceLine);
+  }
   lines.push(`今日已用 ¥${money(ledger.spent)}`);
   lines.push(peak.label);
   lines.push(peak.next);
@@ -246,24 +433,33 @@ async function refresh({ show = false } = {}) {
   if (refreshing) {
     const result = await refreshing;
     if (show && result && result.ok && lastSnapshot && lastLedger) {
-      await showSnapshot(lastSnapshot, lastLedger, loadConfig());
+      await showSnapshot(lastSnapshot, lastLedger, loadConfig(), lastAccounts);
     }
     return result;
   }
   refreshing = (async () => {
     const config = loadConfig();
-    const snapshot = await fetchBalance(config);
+    const accounts = await refreshAccounts(config);
+    lastAccounts = accounts;
+    const deepseek = accounts.find((account) => account.keyEnv === 'DEEPSEEK_API_KEY');
+    const primary = deepseek && deepseek.status === 'ok' ? deepseek : accounts.find((account) => account.status === 'ok');
+    let snapshot;
+    if (primary) {
+      snapshot = { ok: true, total: primary.total, bonus: primary.bonus, recharge: primary.recharge, currency: primary.currency };
+    } else {
+      snapshot = await fetchBalance(config);
+    }
     if (!snapshot.ok) {
       logLine('balance', `refresh failed: ${snapshot.reason}`);
       if (show) await say(errorText(snapshot.reason));
-      return { ok: false, reason: snapshot.reason, config: configSummary(config) };
+      return { ok: false, reason: snapshot.reason, accounts, config: configSummary(config) };
     }
     const ledger = updateLedger(snapshot);
     lastSnapshot = snapshot;
     lastLedger = ledger;
     const alerted = await checkAlert(snapshot, ledger, config);
-    if (show && !alerted) await showSnapshot(snapshot, ledger, config);
-    return { ok: true, snapshot, ledger, peak: peakInfo(), config: configSummary(config) };
+    if (show && !alerted) await showSnapshot(snapshot, ledger, config, accounts);
+    return { ok: true, snapshot, ledger, accounts, peak: peakInfo(), config: configSummary(config) };
   })();
   try {
     return await refreshing;
@@ -369,6 +565,12 @@ function settingsData() {
     alertThreshold: Number(config.alertThreshold) || 0,
     hasConfigKey: hasConfigKey(config),
     hasEnvKey: hasEnvKey(),
+    clickSound: soundIdFromConfig(config),
+    chatBaseUrl: String(config.chatBaseUrl || DEFAULTS.chatBaseUrl),
+    chatModel: String(config.chatModel || DEFAULTS.chatModel),
+    chatPrompt: String(config.chatPrompt || DEFAULTS.chatPrompt),
+    hasChatKey: Boolean(resolveChatKey(config)),
+    hasChatConfigKey: Boolean(String(config.chatApiKey || '').trim()),
   };
 }
 
@@ -389,9 +591,123 @@ function saveSettings(body) {
   if (Number.isFinite(refreshSec)) next.refreshSec = Math.max(15, Math.round(refreshSec));
   const alertThreshold = Number(body.alertThreshold);
   if (Number.isFinite(alertThreshold)) next.alertThreshold = Math.max(0, alertThreshold);
+  if (typeof body.clickSound === 'string' && allSounds().some((sound) => sound.id === body.clickSound)) {
+    next.clickSound = body.clickSound;
+  }
+  if (typeof body.chatBaseUrl === 'string' && body.chatBaseUrl.trim()) next.chatBaseUrl = body.chatBaseUrl.trim();
+  if (typeof body.chatModel === 'string' && body.chatModel.trim()) next.chatModel = body.chatModel.trim();
+  if (typeof body.chatPrompt === 'string' && body.chatPrompt.trim()) next.chatPrompt = body.chatPrompt.trim();
+  if (body.clearChatApiKey === true) next.chatApiKey = '';
+  else if (typeof body.chatApiKey === 'string' && body.chatApiKey.trim()) next.chatApiKey = body.chatApiKey.trim();
   writeJson(BALANCE_CONFIG_FILE, next);
   applyRefreshInterval(next.refreshSec);
   return configSummary(next);
+}
+
+function readBodyBuffer(req, limit = 10 * 1024 * 1024) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    let tooLarge = false;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limit) {
+        tooLarge = true;
+        resolve(null);
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(tooLarge ? null : Buffer.concat(chunks)));
+    req.on('error', () => resolve(null));
+  });
+}
+
+function safeSoundName(raw) {
+  const base = basename(String(raw || 'sound'))
+    .replace(/[\/:*?"<>|]+/g, '_')
+    .slice(0, 80);
+  return base || 'sound';
+}
+
+function serveSound(res, id) {
+  const file = soundPath(String(id || ''));
+  if (!file || !existsSync(file)) {
+    res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' });
+    res.end(JSON.stringify({ ok: false, error: 'sound not found' }));
+    return;
+  }
+  const ext = extname(file).toLowerCase();
+  const type =
+    ext === '.wav' ? 'audio/wav' : ext === '.ogg' ? 'audio/ogg' : ext === '.m4a' ? 'audio/mp4' : 'audio/mpeg';
+  res.writeHead(200, {
+    'content-type': type,
+    'cache-control': 'no-store',
+    'access-control-allow-origin': '*',
+  });
+  res.end(readFileSync(file));
+}
+
+function resolveChatKey(config) {
+  return (
+    String(config.chatApiKey || '').trim() ||
+    resolveApiKey(config) ||
+    readEnvValue('DEEPSEEK_API_KEY')
+  );
+}
+
+function chatUrl(config) {
+  let base = String(config.chatBaseUrl || DEFAULTS.chatBaseUrl).trim().replace(/\/+$/, '');
+  if (!base) base = DEFAULTS.chatBaseUrl;
+  return /\/chat\/completions$/.test(base) ? base : `${base}/chat/completions`;
+}
+
+function readChatHistory() {
+  const history = readJson(CHAT_HISTORY_FILE, []);
+  return Array.isArray(history) ? history : [];
+}
+
+function writeChatHistory(messages) {
+  writeJson(CHAT_HISTORY_FILE, messages.slice(-20));
+}
+
+async function callChat(config, messages, maxTokens = 400) {
+  const key = resolveChatKey(config);
+  if (!key) throw new Error('no-key');
+  const model = String(config.chatModel || DEFAULTS.chatModel).trim();
+  if (!model) throw new Error('no-model');
+  try {
+    const response = await fetch(chatUrl(config), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({ model, messages, temperature: 0.8, max_tokens: maxTokens }),
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const choice = data && Array.isArray(data.choices) ? data.choices[0] : null;
+    const content = choice && choice.message ? choice.message.content : '';
+    if (typeof content !== 'string' || !content.trim()) throw new Error('empty-reply');
+    return content.trim();
+  } catch (error) {
+    if (error && error.name === 'AbortError') throw new Error('timeout');
+    throw error;
+  }
+}
+
+function chatErrorText(error) {
+  const message = error && error.message ? error.message : '';
+  if (message === 'no-key') return '对话 API 未配置：右键 → 设置 → 对话 API';
+  if (message === 'no-model') return '对话模型未配置：右键 → 设置 → 对话 API';
+  if (message === 'timeout') return '对话超时，稍后再试';
+  if (message === 'empty-reply') return '对话失败：模型没有返回内容';
+  if (message.startsWith('HTTP 401') || message.startsWith('HTTP 403')) return '对话失败：API key 无效或无权限';
+  if (message.startsWith('HTTP 404')) return '对话失败：接口地址或模型不存在';
+  return '对话失败：网络或接口错误';
 }
 
 function json(res, status, body) {
@@ -429,6 +745,7 @@ export function startBalanceService() {
         ok: true,
         snapshot: lastSnapshot,
         ledger: lastLedger,
+        accounts: lastAccounts,
         peak: peakInfo(),
         config: configSummary(loadConfig()),
       });
@@ -453,6 +770,89 @@ export function startBalanceService() {
       const body = await readJsonBody(req);
       const config = saveSettings(body);
       return json(res, 200, { ok: true, config });
+    }
+    if (url.pathname === '/sounds' && req.method === 'GET') {
+      return json(res, 200, soundListPayload(loadConfig()));
+    }
+    if (url.pathname === '/click-sound' && req.method === 'GET') {
+      const config = loadConfig();
+      const id = soundIdFromConfig(config);
+      const sound = allSounds().find((item) => item.id === id) || BUILTIN_SOUNDS[0];
+      return json(res, 200, { id: sound.id, name: sound.name, url: soundUrl(sound.id) });
+    }
+    if (url.pathname === '/sound' && req.method === 'GET') {
+      return serveSound(res, url.searchParams.get('id'));
+    }
+    if (url.pathname === '/sounds/import' && req.method === 'POST') {
+      const display = safeSoundName(url.searchParams.get('name'));
+      const ext = extname(display).toLowerCase();
+      if (!SOUND_EXT.has(ext)) {
+        return json(res, 400, { ok: false, error: 'unsupported audio type' });
+      }
+      const buffer = await readBodyBuffer(req);
+      if (!buffer || buffer.length < 100) {
+        return json(res, 400, { ok: false, error: 'empty or too large (max 10MB)' });
+      }
+      ensureSoundsDir();
+      const file = `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}${ext}`;
+      writeFileSync(join(SOUNDS_DIR, file), buffer);
+      const index = readJson(SOUNDS_INDEX_FILE, {});
+      index[file] = { name: basename(display, ext), addedAt: Date.now() };
+      writeJson(SOUNDS_INDEX_FILE, index);
+      const id = `custom:${file}`;
+      return json(res, 200, {
+        ok: true,
+        sound: { id, name: basename(display, ext), url: soundUrl(id) },
+      });
+    }
+    if (url.pathname === '/chat' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const message = String(body.message || '').trim();
+      if (!message) return json(res, 400, { ok: false, error: 'message required' });
+      const config = loadConfig();
+      if (!resolveChatKey(config)) {
+        await say('对话 API 未配置：右键 → 设置 → 对话 API');
+        return json(res, 200, { ok: false, error: 'no-key' });
+      }
+      const history = readChatHistory();
+      const messages = [
+        { role: 'system', content: String(config.chatPrompt || DEFAULTS.chatPrompt) },
+        ...history.slice(-10),
+        { role: 'user', content: message },
+      ];
+      try {
+        const reply = await callChat(config, messages, 500);
+        writeChatHistory([...history, { role: 'user', content: message }, { role: 'assistant', content: reply }]);
+        const bubble = reply.length > 300 ? `${reply.slice(0, 300)}…` : reply;
+        await say(bubble);
+        return json(res, 200, { ok: true, reply });
+      } catch (error) {
+        const text = chatErrorText(error);
+        logLine('chat', `failed: ${error && error.message ? error.message : String(error)}`);
+        await say(text);
+        return json(res, 200, { ok: false, error: text });
+      }
+    }
+    if (url.pathname === '/whisper' && req.method === 'POST') {
+      const config = loadConfig();
+      if (!resolveChatKey(config)) {
+        await say('对话 API 未配置：右键 → 设置 → 对话 API');
+        return json(res, 200, { ok: false, error: 'no-key' });
+      }
+      const messages = [
+        { role: 'system', content: String(config.chatPrompt || DEFAULTS.chatPrompt) },
+        { role: 'user', content: '用一句 20 字以内的话随口碎碎念，不要解释，不要提 AI。' },
+      ];
+      try {
+        const reply = await callChat(config, messages, 80);
+        await say(reply);
+        return json(res, 200, { ok: true, reply });
+      } catch (error) {
+        const text = chatErrorText(error);
+        logLine('chat', `whisper failed: ${error && error.message ? error.message : String(error)}`);
+        await say(text);
+        return json(res, 200, { ok: false, error: text });
+      }
     }
     return json(res, 404, { ok: false, error: 'not found' });
   });
