@@ -36,6 +36,9 @@ export const SETTINGS_HTML = `<!doctype html>
   .account-value { color: #4b7bec; }
   input[type=text], textarea { width: 100%; padding: 10px 12px; border: 1px solid #d9dee8; border-radius: 8px; font-size: 14px; outline: none; font-family: inherit; }
   textarea { resize: vertical; line-height: 1.5; }
+  .account-row input[type=checkbox] { width: auto; flex: 0 0 auto; }
+  .account-row input.account-name { flex: 1; width: auto; padding: 4px 8px; font-size: 13px; }
+  .account-row .account-value { flex: 0 0 auto; }
 </style>
 </head>
 <body>
@@ -94,6 +97,7 @@ export const SETTINGS_HTML = `<!doctype html>
 
   <h2>账户</h2>
   <div id="accounts" class="sound-list">加载中…</div>
+  <div class="hint">勾选要显示在余额气泡中的账户；名字留空使用默认名称。</div>
 
   <h2>当前状态</h2>
   <pre id="status">加载中…</pre>
@@ -270,14 +274,25 @@ export const SETTINGS_HTML = `<!doctype html>
     accounts.forEach(function (a) {
       var row = document.createElement('div');
       row.className = 'account-row';
-      var name = document.createElement('span');
-      name.textContent = a.name;
+      var check = document.createElement('input');
+      check.type = 'checkbox';
+      check.name = 'accountVisible';
+      check.value = a.id;
+      check.checked = a.visible !== false;
+      var name = document.createElement('input');
+      name.type = 'text';
+      name.className = 'account-name';
+      name.name = 'accountName';
+      name.setAttribute('data-id', a.id);
+      name.value = a.customName || '';
+      name.placeholder = a.defaultName || a.name || '';
       var val = document.createElement('span');
       val.className = 'account-value';
       if (a.status === 'ok') val.textContent = '¥' + Number(a.total).toFixed(2) + ' ' + (a.currency || '');
       else if (a.status === 'no-balance-api') val.textContent = '无余额接口';
       else if (a.status === 'no-key') val.textContent = '未配置 key';
       else val.textContent = '查询失败';
+      row.appendChild(check);
       row.appendChild(name);
       row.appendChild(val);
       box.appendChild(row);
@@ -314,7 +329,19 @@ export const SETTINGS_HTML = `<!doctype html>
       chatModel: $('chatModel').value,
       chatApiKey: $('chatApiKey').value,
       clearChatApiKey: $('clearChatKey').checked,
-      chatPrompt: $('chatPrompt').value
+      chatPrompt: $('chatPrompt').value,
+      accountVisibility: (function () {
+        var map = {};
+        var inputs = document.querySelectorAll('input[name=accountVisible]');
+        for (var i = 0; i < inputs.length; i++) map[inputs[i].value] = inputs[i].checked;
+        return map;
+      })(),
+      accountNames: (function () {
+        var map = {};
+        var inputs = document.querySelectorAll('input[name=accountName]');
+        for (var i = 0; i < inputs.length; i++) map[inputs[i].getAttribute('data-id')] = inputs[i].value;
+        return map;
+      })()
     };
     var r = await fetch('/settings', {
       method: 'POST',

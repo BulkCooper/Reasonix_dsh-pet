@@ -53,6 +53,8 @@ const DEFAULTS = {
   chatApiKey: '',
   chatModel: 'deepseek-chat',
   chatPrompt: '你是一只住在 Reasonix 桌面上的蓝发小女仆桌宠，说话自然、简短、温柔带点俏皮；不要提你是 AI。',
+  accountVisibility: {},
+  accountNames: {},
 };
 
 
@@ -229,7 +231,7 @@ function accountGroups() {
 
 async function refreshAccounts(config) {
   const accounts = accountGroups();
-  return Promise.all(
+  const results = await Promise.all(
     accounts.map(async (account) => {
       const key =
         account.keyEnv === 'DEEPSEEK_API_KEY' ? resolveApiKey(config) : readEnvValue(account.keyEnv);
@@ -265,6 +267,19 @@ async function refreshAccounts(config) {
       }
     }),
   );
+  return results.map((account) => {
+    const names = config.accountNames && typeof config.accountNames === 'object' ? config.accountNames : {};
+    const visibility =
+      config.accountVisibility && typeof config.accountVisibility === 'object' ? config.accountVisibility : {};
+    const custom = String(names[account.id] || '').trim();
+    return {
+      ...account,
+      defaultName: account.name,
+      customName: custom || '',
+      name: custom || account.name,
+      visible: visibility[account.id] !== false,
+    };
+  });
 }
 
 function numberOrNull(value) {
@@ -386,10 +401,13 @@ function errorText(reason) {
 async function showSnapshot(snapshot, ledger, config, accounts = []) {
   const peak = peakInfo();
   const lines = [];
-  if (accounts.length) {
-    for (const account of accounts) {
+  const visibleAccounts = accounts.filter((account) => account.visible !== false);
+  if (visibleAccounts.length) {
+    for (const account of visibleAccounts) {
       lines.push(`${account.name} ${account.status === 'ok' ? `¥${money(account.total)}` : '—'}`);
     }
+  } else if (accounts.length) {
+    lines.push('余额 —');
   } else {
     let balanceLine = `余额 ¥${money(snapshot.total)}`;
     if (snapshot.bonus !== null && snapshot.bonus > 0) balanceLine += `（赠金 ¥${money(snapshot.bonus)}）`;
@@ -599,6 +617,21 @@ function saveSettings(body) {
   if (typeof body.chatPrompt === 'string' && body.chatPrompt.trim()) next.chatPrompt = body.chatPrompt.trim();
   if (body.clearChatApiKey === true) next.chatApiKey = '';
   else if (typeof body.chatApiKey === 'string' && body.chatApiKey.trim()) next.chatApiKey = body.chatApiKey.trim();
+  if (body.accountVisibility && typeof body.accountVisibility === 'object') {
+    const visibility = {};
+    for (const [id, visible] of Object.entries(body.accountVisibility)) {
+      visibility[String(id)] = visible === true;
+    }
+    next.accountVisibility = visibility;
+  }
+  if (body.accountNames && typeof body.accountNames === 'object') {
+    const names = {};
+    for (const [id, name] of Object.entries(body.accountNames)) {
+      const value = String(name || '').trim().slice(0, 40);
+      if (value) names[String(id)] = value;
+    }
+    next.accountNames = names;
+  }
   writeJson(BALANCE_CONFIG_FILE, next);
   applyRefreshInterval(next.refreshSec);
   return configSummary(next);
