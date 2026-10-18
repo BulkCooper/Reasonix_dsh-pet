@@ -1,0 +1,70 @@
+{
+  "apiVersion": "reasonix.io/plugin/v2",
+  "name": "DSH_pet_reasonix",
+  "version": "1.0.0",
+  "description": "将 dsh-pet 大肥鱼桌宠移植到 Reasonix Studio：桌面透明宠物、会话事件联动、随 Reasonix 进程自动启停。",
+  "contributes": {
+    "skills": [
+      "skills"
+    ],
+    "commands": [
+      "commands"
+    ],
+    "hooks": {
+      "SessionStart": [
+        {
+          "command": "pet-hook.cmd SessionStart",
+          "description": "拉起桌宠并把状态切到待命"
+        }
+      ],
+      "UserPromptSubmit": [
+        {
+          "command": "pet-hook.cmd UserPromptSubmit",
+          "description": "桌宠切到思考状态"
+        }
+      ],
+      "PreToolUse": [
+        {
+          "command": "pet-hook.cmd PreToolUse",
+          "description": "桌宠切到工作状态"
+        }
+      ],
+      "PostToolUse": [
+        {
+          "command": "pet-hook.cmd PostToolUse",
+          "description": "桌宠切到整理状态"
+        }
+      ],
+      "PostToolUseFailure": [
+        {
+          "command": "pet-hook.cmd PostToolUseFailure",
+          "description": "桌宠切到出错状态"
+        }
+      ],
+      "Stop": [
+        {
+          "command": "pet-hook.cmd Stop",
+          "description": "桌宠切到完成状态"
+        }
+      ],
+      "StopFailure": [
+        {
+          "command": "pet-hook.cmd StopFailure",
+          "description": "桌宠切到出错状态"
+        }
+      ],
+      "Notification": [
+        {
+          "command": "pet-hook.cmd Notification",
+          "description": "桌宠切到等待状态"
+        }
+      ],
+      "SessionEnd": [
+        {
+          "command": "pet-hook.cmd SessionEnd",
+          "description": "桌宠回到待命并道别"
+        }
+      ]
+    }
+  }
+}

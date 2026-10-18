@@ -1,0 +1,25 @@
+// reasonix-pet 的独立配置（DSH_HOME 指向插件自己的 home/，不影响 ~/.dsh）
+// 只写需要覆盖的字段；其余取 dsh-pet 包内默认值。
+{
+  // 独立模式没有 DSH 的通知事件源，关闭系统通知
+  "notificationsEnabled": false,
+  // 甩抛时锁定在当前屏幕，避免宠物飞到别的显示器
+  "confineToScreen": true,
+  "pets": [
+    {
+      "name": "蓝毛小女仆",
+      "id": "main",
+      "size": 320,
+      "balanceEnabled": false,
+      "whisperEnabled": false,
+      "workStatusEnabled": true,
+      "fixedEnabled": false,
+      "display": "desktop",
+      "position": {
+        "corner": "bottom-right",
+        "marginX": 24,
+        "marginY": 120
+      }
+    }
+  ]
+}
