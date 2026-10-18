@@ -5,7 +5,7 @@
 > 版本：`DSH_pet_reasonix 2.1.4`  
 > 2.1.4：补回 Electron Chromium 许可证，精简 vendor 体积，修复 `pet.cmd install`。  
 > 2.1.3：修复手势收尾方法缺失导致的拖拽松手不抛掷、松开音效不响。  
-> 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/66993fbf797f5ab14e884a5b2ffd275173e510bc`  
+> 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/05159df0aa64681fb195f6004c2273be64ffaec5`  
 > 上游：`dsh-pet@0.3.7`（MIT），Electron `43.3.0`
 
 <p align="center">
