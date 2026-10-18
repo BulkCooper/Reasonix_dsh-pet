@@ -2,7 +2,7 @@
 
 把 [dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 桌宠适配到 Reasonix Studio 的插件。
 
-> 版本：`DSH_pet_reasonix 2.1.1`  
+> 版本：`DSH_pet_reasonix 2.1.2`  
 > 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/259df8e0dd4d67c9d96d916d7a8690325ee015e6`  
 > 上游：`dsh-pet@0.3.7`（MIT），Electron `43.3.0`
 
@@ -12,7 +12,7 @@
 - Reasonix 会话事件联动：思考 / 工作 / 整理 / 等待 / 完成 / 出错
 - 本地余额面板：余额、今日已用、峰谷状态、余额预警
 - 手动多账户：设置页最多新建 10 个账户，分别填写名称、余额接口和 key
-- 按下 / 松开双音效：latest-wins 连点不积压；拖拽松开也播放，不回落错误音效
+- 按下 / 松开双音效：按下播完才播松开；latest-wins 连点不积压；拖拽松开也播放，不回落错误音效
 - 可配置 OpenAI 兼容对话 API；右键「对话」「碎碎念」
 - 设置页底部固定保存栏、清除今日已用
 
