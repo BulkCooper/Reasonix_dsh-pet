@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** reasonix-pet 命令行：start / stop / status / say / play / state / doctor / electron / logs */
+/** reasonix-pet 命令行：start / install / stop / status / say / play / state / doctor / electron / logs */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -34,6 +34,7 @@ const HELP = `reasonix-pet — Reasonix 桌宠控制
 用法：pet.cmd <命令> [参数] [--json]
 
   start              启动桌宠（透明置顶桌面窗口）
+  install            解压/校验固定版本运行时（本地，不联网）
   stop               停止桌宠
   restart            重启桌宠
   status             查看运行状态、端口与宠物
@@ -68,7 +69,7 @@ function printStatus(status) {
     return;
   }
   const { state, health, pets } = status;
-  console.log(`reasonix-pet 2.1.3 · dsh-pet ${petVersion()}`);
+  console.log(`reasonix-pet 2.1.4 · dsh-pet ${petVersion()}`);
   console.log(`  状态   运行中 · 端口 ${state.port} · pid ${state.pid} · 启动于 ${state.startedAt}`);
   if (health?.name) console.log(`  服务   ${health.name}（已运行 ${health.uptimeSec ?? '?'} 秒）`);
   console.log(
@@ -87,6 +88,11 @@ function printStatus(status) {
 
 async function main() {
   switch (command) {
+    case 'install': {
+      // install.mjs 是顶层执行脚本：成功返回，失败 process.exit(1)。
+      await import('./install.mjs');
+      return;
+    }
     case 'start': {
       if (!runtimeInstalled()) {
         console.error('dsh-pet 运行时未安装，请先安装 runtime/node_modules/dsh-pet');

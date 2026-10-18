@@ -2,10 +2,16 @@
 
 把 [dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 桌宠适配到 Reasonix Studio 的插件。
 
-> 版本：`DSH_pet_reasonix 2.1.3`  
+> 版本：`DSH_pet_reasonix 2.1.4`  
+> 2.1.4：补回 Electron Chromium 许可证，精简 vendor 体积，修复 `pet.cmd install`。  
 > 2.1.3：修复手势收尾方法缺失导致的拖拽松手不抛掷、松开音效不响。  
 > 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/66993fbf797f5ab14e884a5b2ffd275173e510bc`  
 > 上游：`dsh-pet@0.3.7`（MIT），Electron `43.3.0`
+
+<p align="center">
+  <img src="assets/preview/pet-balance.png" alt="桌宠与余额气泡" width="200" height="320">
+  <img src="assets/preview/pet-idle.png" alt="桌宠待机" width="200" height="320">
+</p>
 
 ## 功能
 
@@ -81,9 +87,20 @@ commands/pet.md
 
 为满足审核要求，插件不再自动读取 Reasonix 的 providers。余额面板使用**用户手动添加的账户**（最多 10 个，名称 + key + 余额接口），不读取 `.env` 或 `config.toml`。每轮消耗统计已移除。
 
+## 体积与裁剪
+
+`vendor/` 约 177 MB（Electron 约 116 MB + 桌面运行时约 61 MB）。为减小安装与更新体积：
+
+- 删除 Electron 的 `dxcompiler.dll` / `dxil.dll`：桌宠不使用 WebGPU / DirectX Shader Compiler，实测不影响启动与动画；
+- 删除桌面模式不需要的客户端 / 开发依赖：React、react-dom、zod、`@deepseek-ai/*`、eslint 相关、ajv、js-yaml、yaml，以及 `dsh-pet` 的 `src` / `lib/types` / `scripts`；
+- `@electron-internal/extract-zip` 只保留 win32-x64 原生模块；
+- 保留 `@electron/get` 与 `extract-zip`（`standalone.js` 顶层 import 与动态 fallback 仍会加载）；
+- 保留 Electron 的 `LICENSES.chromium.html`（约 19.4 MB，压缩后约 2.1 MB）和 `LICENSE`；
+- `electron.exe`（压缩后约 92.5 MB）与 webm 动画素材（约 51.8 MB）是体积主体，不再裁剪。
+
 ## 来源与许可
 
 - `dsh-pet@0.3.7`：MIT，原作者 PC2005-cloud
 - 自适应修改：BulkCooper
-- Electron `43.3.0`：Electron 许可证包含在 `vendor/electron-2.zip`
+- Electron `43.3.0`：`LICENSE` 与 `LICENSES.chromium.html`（Chromium 第三方许可证）均包含在 `vendor/electron-2.zip`
 - 点击音效 D1/D2/Ya1/Ya2：来自 DeepSeek-Balance-Whale-Widget（MIT）
