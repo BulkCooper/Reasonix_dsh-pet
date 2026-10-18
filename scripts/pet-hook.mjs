@@ -78,6 +78,23 @@ async function main() {
     if (!running) return;
   }
 
+  // 任务完成常驻提示：Stop 点亮；新任务 / 新会话清除（点击桌宠、回到窗口由桌宠端处理）。
+  if (event === 'Stop') {
+    const response = await callApi(
+      '/task-complete',
+      { method: 'POST', body: { text: pick(MESSAGES.success) }, timeout: 800 },
+      { autoStart: false },
+    );
+    if (!response.ok) logLine('hook', `task-complete 失败：${response.error || `HTTP ${response.status}`}`);
+  } else if (event === 'UserPromptSubmit' || event === 'PreToolUse' || event === 'SessionStart') {
+    const response = await callApi(
+      '/task-clear',
+      { method: 'POST', body: {}, timeout: 800 },
+      { autoStart: false },
+    );
+    if (!response.ok) logLine('hook', `task-clear 失败：${response.error || `HTTP ${response.status}`}`);
+  }
+
   const previously = readJson(HOOK_STATE_FILE, {});
   const now = Date.now();
   const previousAt = Number(previously?.at || 0);

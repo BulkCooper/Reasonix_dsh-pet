@@ -28,6 +28,7 @@ import {
   logLine,
   readJson,
   writeJson,
+  loadState,
 } from './config.mjs';
 import { play, say } from './control.mjs';
 import { SETTINGS_HTML } from './settings-page.mjs';
@@ -75,7 +76,57 @@ const DEFAULTS = {
   chatPrompt: '你是一只住在 Reasonix 桌面上的蓝发小女仆桌宠，说话自然、简短、温柔带点俏皮；不要提你是 AI。',
   accountVisibility: {},
   accountNames: {},
+  autoReturnEnabled: true,
+  autoReturnDelaySec: 60,
+  petSize: 320,
+  bubbleScale: 1,
+  bubbleFontSize: 14,
 };
+
+const PET_CONFIG_FILE = join(HOME_DIR, 'dsh-pet', 'main-config.jsonc');
+
+/** dsh-pet 的 main-config.jsonc 是 JSONC（当前只有整行注释）：去掉注释后按 JSON 处理。 */
+function parsePetConfig(text) {
+  return JSON.parse(text.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, ''));
+}
+
+function readPetConfigFile() {
+  try {
+    return parsePetConfig(readFileSync(PET_CONFIG_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function readPetSize(config) {
+  const cfg = readPetConfigFile();
+  const pets = cfg && Array.isArray(cfg.pets) ? cfg.pets : [];
+  const pet = pets.find((p) => p && p.id === 'main') || pets[0];
+  const n = Number(pet && pet.size);
+  if (Number.isFinite(n) && n > 0) return Math.max(160, Math.min(640, Math.round(n)));
+  return Math.max(160, Math.min(640, Math.round(Number(config && config.petSize) || 320)));
+}
+
+function writePetSize(size) {
+  const cfg = readPetConfigFile();
+  if (!cfg || !Array.isArray(cfg.pets) || !cfg.pets.length) return false;
+  for (const pet of cfg.pets) pet.size = size;
+  writeFileSync(PET_CONFIG_FILE, JSON.stringify(cfg, null, 2) + String.fromCharCode(10), 'utf8');
+  return true;
+}
+
+async function reloadPetRuntime() {
+  try {
+    const state = loadState();
+    if (!state || !state.port) return;
+    await fetch(`http://127.0.0.1:${state.port}/dsh-pet-7340/reload`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(2500),
+    });
+  } catch {
+    /* 桌宠未运行：下次启动时使用新 size */
+  }
+}
 
 
 const SOUNDS_DIR = join(HOME_DIR, 'click-sounds');
@@ -518,6 +569,11 @@ function configSummary(config) {
   return {
     refreshSec: Number(config.refreshSec) || DEFAULTS.refreshSec,
     alertThreshold: Number(config.alertThreshold) || 0,
+    autoReturnEnabled: config.autoReturnEnabled !== false,
+    autoReturnDelaySec: Number.isFinite(Number(config.autoReturnDelaySec)) ? Math.max(0, Math.round(Number(config.autoReturnDelaySec))) : DEFAULTS.autoReturnDelaySec,
+    petSize: readPetSize(config),
+    bubbleScale: Number.isFinite(Number(config.bubbleScale)) ? Math.max(0.6, Math.min(2, Number(config.bubbleScale))) : DEFAULTS.bubbleScale,
+    bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
     balanceUrl: accounts[0] ? accounts[0].balanceUrl : DEFAULTS.balanceUrl,
     hasApiKey: accountsHaveKey(config),
     accountCount: accounts.length,
@@ -633,6 +689,11 @@ function settingsData() {
   return {
     refreshSec: Number(config.refreshSec) || DEFAULTS.refreshSec,
     alertThreshold: Number(config.alertThreshold) || 0,
+    autoReturnEnabled: config.autoReturnEnabled !== false,
+    autoReturnDelaySec: Number.isFinite(Number(config.autoReturnDelaySec)) ? Math.max(0, Math.round(Number(config.autoReturnDelaySec))) : DEFAULTS.autoReturnDelaySec,
+    petSize: readPetSize(config),
+    bubbleScale: Number.isFinite(Number(config.bubbleScale)) ? Math.max(0.6, Math.min(2, Number(config.bubbleScale))) : DEFAULTS.bubbleScale,
+    bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
     hasConfigKey: accountsHaveKey(config),
     hasEnvKey: false,
     accounts: publicAccounts(config),
@@ -761,6 +822,24 @@ function saveSettings(body) {
   if (Number.isFinite(refreshSec)) next.refreshSec = Math.max(15, Math.round(refreshSec));
   const alertThreshold = Number(body.alertThreshold);
   if (Number.isFinite(alertThreshold)) next.alertThreshold = Math.max(0, alertThreshold);
+  if (typeof body.autoReturnEnabled === 'boolean') next.autoReturnEnabled = body.autoReturnEnabled;
+  const autoReturnDelaySec = Number(body.autoReturnDelaySec);
+  if (Number.isFinite(autoReturnDelaySec)) next.autoReturnDelaySec = Math.max(0, Math.min(3600, Math.round(autoReturnDelaySec)));
+  let reloadPet = false;
+  const petSize = Number(body.petSize);
+  if (Number.isFinite(petSize)) {
+    const safeSize = Math.max(160, Math.min(640, Math.round(petSize)));
+    if (safeSize !== readPetSize(next)) {
+      next.petSize = safeSize;
+      reloadPet = writePetSize(safeSize);
+    } else {
+      next.petSize = safeSize;
+    }
+  }
+  const bubbleScale = Number(body.bubbleScale);
+  if (Number.isFinite(bubbleScale)) next.bubbleScale = Math.max(0.6, Math.min(2, bubbleScale));
+  const bubbleFontSize = Number(body.bubbleFontSize);
+  if (Number.isFinite(bubbleFontSize)) next.bubbleFontSize = Math.max(10, Math.min(30, Math.round(bubbleFontSize)));
   if (typeof body.clickSound === 'string' && allSounds().some((sound) => sound.id === body.clickSound)) {
     next.clickSound = body.clickSound;
   }
@@ -777,7 +856,7 @@ function saveSettings(body) {
   else if (typeof body.chatApiKey === 'string' && body.chatApiKey.trim()) next.chatApiKey = body.chatApiKey.trim();
   writeJson(BALANCE_CONFIG_FILE, next);
   applyRefreshInterval(next.refreshSec);
-  return { config: configSummary(next), warnings };
+  return { config: configSummary(next), warnings, reloadPet };
 }
 
 function readBodyBuffer(req, limit = 10 * 1024 * 1024) {
@@ -933,6 +1012,17 @@ export function startBalanceService() {
       return;
     }
     if (url.pathname === '/health') return json(res, 200, { ok: true });
+    if (url.pathname === '/behavior' && req.method === 'GET') {
+      const config = loadConfig();
+      const delay = Number(config.autoReturnDelaySec);
+      return json(res, 200, {
+        autoReturnEnabled: config.autoReturnEnabled !== false,
+        autoReturnDelaySec: Number.isFinite(delay) ? Math.max(0, Math.round(delay)) : DEFAULTS.autoReturnDelaySec,
+        petSize: readPetSize(config),
+        bubbleScale: Number.isFinite(Number(config.bubbleScale)) ? Math.max(0.6, Math.min(2, Number(config.bubbleScale))) : DEFAULTS.bubbleScale,
+        bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
+      });
+    }
     if (url.pathname === '/status') {
       return json(res, 200, {
         ok: true,
@@ -970,6 +1060,7 @@ export function startBalanceService() {
       }
       // 保存后立刻用新配置刷新一次账户余额（限时，避免保存请求卡太久）
       await refreshAfterSave();
+      if (saved.reloadPet) void reloadPetRuntime();
       const data = settingsData();
       return json(res, 200, {
         ok: true,

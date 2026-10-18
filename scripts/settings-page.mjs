@@ -73,6 +73,24 @@ export const SETTINGS_HTML = `<!doctype html>
   <label for="alertThreshold">余额预警阈值（元，0 = 关闭）</label>
   <input id="alertThreshold" type="number" min="0" step="0.01" value="10">
 
+  <h2>桌宠行为</h2>
+  <label class="check"><input id="autoReturnEnabled" type="checkbox" checked> 自动回到 Reasonix 窗口右下角</label>
+  <div class="hint">窗口关闭或最小化时回到屏幕右下角。取消勾选后完全不自动移动。</div>
+  <label for="autoReturnDelaySec">被拖走后等待（秒）</label>
+  <input id="autoReturnDelaySec" type="number" min="0" step="1" value="60">
+  <div class="hint">拖拽结束至少等待这么久，桌宠才会自动归位；0 = 立即归位。</div>
+
+  <h2>外观</h2>
+  <label for="petSize">桌宠大小（px）</label>
+  <input id="petSize" type="number" min="160" max="640" step="10" value="320">
+  <div class="hint">保存后会重建桌面窗口；160–640 px。</div>
+  <label for="bubbleScale">文字弹窗大小（倍率）</label>
+  <input id="bubbleScale" type="number" min="0.6" max="2" step="0.1" value="1">
+  <div class="hint">控制气泡的宽度与内边距，不改变文字大小；最多 2 秒生效。</div>
+  <label for="bubbleFontSize">文字大小（px）</label>
+  <input id="bubbleFontSize" type="number" min="10" max="30" step="1" value="14">
+  <div class="hint">独立于弹窗大小；最多 2 秒生效。</div>
+
   <h2>点击音效</h2>
   <p class="sub">分别选择「按下」和「松开」的音效；也可以导入本地音频并裁剪。保存后下一次点击立即使用。</p>
   <label for="pressSound">按下音效</label>
@@ -490,6 +508,11 @@ export const SETTINGS_HTML = `<!doctype html>
       defaultBalanceUrl = d.defaultBalanceUrl || '';
       $('refreshSec').value = d.refreshSec;
       $('alertThreshold').value = d.alertThreshold;
+      $('autoReturnEnabled').checked = d.autoReturnEnabled !== false;
+      $('autoReturnDelaySec').value = d.autoReturnDelaySec;
+      $('petSize').value = d.petSize;
+      $('bubbleScale').value = d.bubbleScale;
+      $('bubbleFontSize').value = d.bubbleFontSize;
       $('chatBaseUrl').value = d.chatBaseUrl || '';
       $('chatModel').value = d.chatModel || '';
       $('chatPrompt').value = d.chatPrompt || '';
@@ -518,6 +541,11 @@ export const SETTINGS_HTML = `<!doctype html>
     var body = {
       refreshSec: Number($('refreshSec').value),
       alertThreshold: Number($('alertThreshold').value),
+      autoReturnEnabled: $('autoReturnEnabled').checked,
+      autoReturnDelaySec: Number($('autoReturnDelaySec').value),
+      petSize: Number($('petSize').value),
+      bubbleScale: Number($('bubbleScale').value),
+      bubbleFontSize: Number($('bubbleFontSize').value),
       clickPressSound: $('pressSound').value,
       clickReleaseSound: $('releaseSound').value,
       clickSound: $('pressSound').value,
