@@ -18,6 +18,8 @@ export const LOG_DIR = join(STATE_DIR, 'logs');
 export const STATE_FILE = join(STATE_DIR, 'runtime.json');
 export const HOOK_STATE_FILE = join(STATE_DIR, 'hook-state.json');
 export const WATCHDOG_FILE = join(STATE_DIR, 'watchdog.json');
+export const MANUAL_STOP_FILE = join(STATE_DIR, 'manual-stop.json');
+export const AGENT_LOCK_FILE = join(STATE_DIR, 'agent.lock');
 
 export const RUNTIME_ROOT = join(PLUGIN_ROOT, 'runtime');
 export const PET_PACKAGE_ROOT = join(RUNTIME_ROOT, 'node_modules', 'dsh-pet');

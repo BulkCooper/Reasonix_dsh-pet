@@ -29,7 +29,7 @@ const args = argv.filter((arg) => arg !== '--json');
 const command = args[0] || 'status';
 const rest = args.slice(1);
 
-const HELP = `DSH_pet_reasonix — Reasonix 桌宠控制
+const HELP = `reasonix-pet — Reasonix 桌宠控制
 
 用法：pet.cmd <命令> [参数] [--json]
 
@@ -68,11 +68,13 @@ function printStatus(status) {
     return;
   }
   const { state, health, pets } = status;
-  console.log(`DSH_pet_reasonix 1.0.0 · dsh-pet ${petVersion()}`);
+  console.log(`reasonix-pet 0.1.4 · dsh-pet ${petVersion()}`);
   console.log(`  状态   运行中 · 端口 ${state.port} · pid ${state.pid} · 启动于 ${state.startedAt}`);
   if (health?.name) console.log(`  服务   ${health.name}（已运行 ${health.uptimeSec ?? '?'} 秒）`);
   if (status.watchdog) {
     console.log(`  看护   pid ${status.watchdog.pid}（Reasonix 主进程 ${status.watchdog.appPid ?? '按进程名'}，退出后自动停止桌宠）`);
+  } else if (status.agent) {
+    console.log(`  守护   agent pid ${status.agent.pid}（登录启动，Reasonix 退出后停止桌宠）`);
   } else {
     console.log('  看护   未启用（找不到 Reasonix Studio / 已设置 REASONIX_PET_NO_WATCHDOG=1）');
   }
@@ -107,7 +109,7 @@ async function main() {
       return;
     }
     case 'stop': {
-      const result = await stopPet();
+      const result = await stopPet({ manual: true });
       if (jsonOutput) console.log(JSON.stringify(result, null, 2));
       else console.log(result.stopped ? `已停止（pid ${result.pid}，端口 ${result.port}）` : '桌宠本来就没在运行');
       return;

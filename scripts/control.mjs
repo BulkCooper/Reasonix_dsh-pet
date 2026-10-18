@@ -14,6 +14,8 @@ import {
   PET_ID,
   PLUGIN_ROOT,
   PET_PACKAGE_ROOT,
+  AGENT_LOCK_FILE,
+  MANUAL_STOP_FILE,
   STANDALONE_ENTRY,
   STATE_DIR,
   WATCHDOG_FILE,
@@ -199,13 +201,16 @@ export function stopWatchdog() {
  * @returns {{pid:number, port:number, startedAt:string, log:string, reused?:boolean}}
  */
 export async function startPet(options = {}) {
-  const { quiet = false, waitMs = 20_000 } = options;
+  const { quiet = false, waitMs = 20_000, watchdog = true, appPidOverride, clearManual = true } = options;
   ensureDirs();
   if (!runtimeInstalled()) {
     throw new Error(`dsh-pet 运行时未安装：${STANDALONE_ENTRY} 不存在，请先运行 pet.cmd install`);
   }
 
-  const appPid = getReasonixMainPid();
+  const appPid = appPidOverride ?? getReasonixMainPid();
+  if (clearManual) {
+    try { unlinkSync(MANUAL_STOP_FILE); } catch { /* ignore */ }
+  }
   const existing = loadState();
   if (existing?.port && (await isHealthy(existing.port))) {
     if (appPid && existing.appPid && Number(existing.appPid) !== appPid) {
@@ -215,7 +220,7 @@ export async function startPet(options = {}) {
     } else {
       const reused = existing.appPid ? existing : { ...existing, appPid: appPid ?? undefined };
       if (!existing.appPid) saveState(reused);
-      ensureWatchdog(reused);
+      if (watchdog) ensureWatchdog(reused);
       return { ...reused, reused: true };
     }
   }
@@ -276,7 +281,7 @@ export async function startPet(options = {}) {
       const output = tailLog(log.file);
       throw new Error(`桌宠服务启动超时（端口 ${port}）。日志：\n${output || '（无输出）'}`);
     }
-    ensureWatchdog(state);
+    if (watchdog) ensureWatchdog(state);
     return state;
   } finally {
     try { closeSync(lockFd); } catch { /* ignore */ }
@@ -285,7 +290,12 @@ export async function startPet(options = {}) {
 }
 
 /** 停止桌宠（幂等） */
-export async function stopPet() {
+export async function stopPet(options = {}) {
+  const { manual = false } = options;
+  if (manual) {
+    const current = loadState();
+    writeJson(MANUAL_STOP_FILE, { at: Date.now(), appPid: current?.appPid ?? null });
+  }
   stopWatchdog();
   const state = loadState();
   if (!state?.port) {
@@ -329,6 +339,7 @@ export async function getStatus() {
       size: pet.size,
     }));
   const watchdog = readJson(WATCHDOG_FILE);
+  const agent = readJson(AGENT_LOCK_FILE);
   return {
     running: true,
     state,
@@ -336,6 +347,7 @@ export async function getStatus() {
     pets,
     petState: petState.json,
     watchdog: watchdogAlive(watchdog) ? watchdog : null,
+    agent: watchdogAlive(agent) ? agent : null,
   };
 }
 

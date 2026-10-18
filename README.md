@@ -60,6 +60,10 @@ pet.cmd stop
 - **关闭**：看护每 2 秒检查启动时记录的 Reasonix 主进程 PID，连续 3 次（约 6 秒）检测不到就停止桌宠。
   只看进程、不看窗口：关闭到后台（`close_behavior=background`）时桌宠继续；结束 Reasonix 进程后停止。
 - **应用重启**：主进程 PID 变化时，`SessionStart` 会主动重启桌宠并重新接管。
+- **启动加速**：安装脚本在 `%APPDATA%/Microsoft/Windows/Start Menu/Programs/Startup/reasonix-pet-agent.vbs`
+  注册隐藏的登录 supervisor；应用进程出现后约 2-5 秒拉起桌宠（`SessionStart` 实测可能晚 40 秒以上）。
+- **手动停止**：`pet.cmd stop` 在当前应用实例内生效，supervisor 不会立即重新拉起；应用重启后恢复。
+- 不需要随登录启动：删除上面的 VBS，并结束 `agent.mjs` 进程。
 - `pet.cmd stop` 会同时结束看护进程。
 - 想让桌宠常驻（不随应用退出）：设置 `REASONIX_PET_NO_WATCHDOG=1` 后再启动。
 
@@ -93,6 +97,7 @@ pet.cmd stop
 reasonix-plugin.json        Reasonix 原生插件清单（skills/commands/hooks）
 pet.cmd / pet-hook.cmd      Windows 入口
 scripts/install.mjs         安装 dsh-pet 运行时并打菜单补丁
+scripts/agent.mjs           登录时 supervisor：快速拉起/停止桌宠
 scripts/                    控制、hook 桥接、看护与共享配置
 home/dsh-pet/main-config.jsonc  独立配置（DSH_HOME 隔离）
 skills/pet/SKILL.md         给 agent 的控制说明
@@ -100,6 +105,11 @@ commands/pet.md             /pet 命令
 ```
 
 `runtime/`、`state/` 与 `home/electron/` 由安装脚本/运行过程生成，不随仓库分发。
+
+## 启动速度
+
+- 登录 supervisor 实测在应用运行中自动拉起桌宠约 0.6 秒；应用冷启动时通常 2-5 秒出现窗口。
+- `SessionStart` 仍保留为兜底，但不再依赖它做首次启动。
 
 ## 许可
 
