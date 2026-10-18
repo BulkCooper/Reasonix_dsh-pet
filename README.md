@@ -4,7 +4,7 @@
 
 > 版本：`DSH_pet_reasonix 2.1.3`  
 > 2.1.3：修复手势收尾方法缺失导致的拖拽松手不抛掷、松开音效不响。  
-> 源码：`https://github.com/BulkCooper/Reasonix_dsh-pet`（vendor 运行时按 2.1.3 构建；上游基线 `196d34b`）  
+> 固定源码：`https://github.com/BulkCooper/Reasonix_dsh-pet/tree/66993fbf797f5ab14e884a5b2ffd275173e510bc`  
 > 上游：`dsh-pet@0.3.7`（MIT），Electron `43.3.0`
 
 ## 功能
