@@ -175,13 +175,13 @@ function peakInfo(now = new Date()) {
   const weekend = day === 0 || day === 6;
   const peak = !weekend && ((minutes >= 540 && minutes < 720) || (minutes >= 840 && minutes < 1080));
   let next;
-  if (weekend) next = '周一 09:00 转高峰';
-  else if (minutes < 540) next = '09:00 转高峰';
-  else if (minutes < 720) next = peak ? '12:00 转谷价' : '14:00 转高峰';
-  else if (minutes < 840) next = '14:00 转高峰';
-  else if (minutes < 1080) next = peak ? '18:00 转谷价' : '下个工作日 09:00 转高峰';
-  else next = '下个工作日 09:00 转高峰';
-  return { peak, label: peak ? `高峰 · ${next}` : `谷价 · ${next}` };
+  if (weekend) next = '周一 09:00 转梁文峰';
+  else if (minutes < 540) next = '09:00 转梁文峰';
+  else if (minutes < 720) next = peak ? '12:00 转梁文谷' : '14:00 转梁文峰';
+  else if (minutes < 840) next = '14:00 转梁文峰';
+  else if (minutes < 1080) next = peak ? '18:00 转梁文谷' : '下个工作日 09:00 转梁文峰';
+  else next = '下个工作日 09:00 转梁文峰';
+  return { peak, label: peak ? '梁文峰' : '梁文谷', next };
 }
 
 function balanceAnimation(total, threshold) {
@@ -203,11 +203,15 @@ function errorText(reason) {
 }
 
 async function showSnapshot(snapshot, ledger, config) {
-  const parts = [`余额 ¥${money(snapshot.total)}`];
-  if (snapshot.bonus !== null && snapshot.bonus > 0) parts.push(`赠金 ¥${money(snapshot.bonus)}`);
-  parts.push(`今日已用 ¥${money(ledger.spent)}`);
-  parts.push(peakInfo().label);
-  await say(parts.join(' · '));
+  const peak = peakInfo();
+  const lines = [];
+  let balanceLine = `余额 ¥${money(snapshot.total)}`;
+  if (snapshot.bonus !== null && snapshot.bonus > 0) balanceLine += `（赠金 ¥${money(snapshot.bonus)}）`;
+  lines.push(balanceLine);
+  lines.push(`今日已用 ¥${money(ledger.spent)}`);
+  lines.push(peak.label);
+  lines.push(peak.next);
+  await say(lines.join(String.fromCharCode(10)));
   await play(balanceAnimation(snapshot.total, Number(config.alertThreshold) || 0));
 }
 

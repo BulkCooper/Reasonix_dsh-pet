@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * 上游补丁：给桌面宠物加余额交互。
- *   1) 双击宠物：播放音效 + 请求本地余额服务显示余额气泡
- *   2) 右键菜单：「刷新余额」「设置」（设置页由余额服务提供）
- *   3) 把 assets/balance-double-click.mp3 复制到 Electron helper
+ *   1) 双击宠物：随机播放一个点击音效 + 请求余额服务显示多行余额气泡
+ *   2) 右键菜单：「刷新余额」「设置」
+ *   3) 气泡支持多行（余额 / 今日 / 梁文峰谷 / 切换时间）
  *
  * 幂等。升级/重装 dsh-pet 后重新运行，然后 `pet.cmd restart`。
  */
@@ -13,8 +13,7 @@ import { PET_PACKAGE_ROOT, PLUGIN_ROOT } from './config.mjs';
 
 const helper = join(PET_PACKAGE_ROOT, 'runtime', 'electron-helper');
 const sprite = join(helper, 'sprite.js');
-const audioSource = join(PLUGIN_ROOT, 'assets', 'balance-double-click.mp3');
-const audioDest = join(helper, 'balance-double-click.mp3');
+const CLICK_SOUNDS = ['click-1.mp3', 'click-2.mp3', 'click-3.mp3', 'click-4.mp3'];
 
 if (!existsSync(sprite)) {
   console.error(`sprite.js not found: ${sprite} (install dsh-pet first)`);
@@ -23,6 +22,10 @@ if (!existsSync(sprite)) {
 
 let source = readFileSync(sprite, 'utf8');
 let changed = false;
+
+const clickAudioCode =
+  "      const clickSounds = ['click-1.mp3', 'click-2.mp3', 'click-3.mp3', 'click-4.mp3'];\n" +
+  "      const audio = new Audio(clickSounds[Math.floor(Math.random() * clickSounds.length)]);\n";
 
 // ---- 双击 ----
 if (!source.includes('onBalanceDoubleClick')) {
@@ -57,7 +60,7 @@ if (!source.includes('onBalanceDoubleClick')) {
   const method =
     "  onBalanceDoubleClick() {\n" +
     "    try {\n" +
-    "      const audio = new Audio('balance-double-click.mp3');\n" +
+    clickAudioCode +
     "      audio.volume = 0.85;\n" +
     "      audio.play().catch(() => {});\n" +
     "    } catch {\n" +
@@ -66,6 +69,13 @@ if (!source.includes('onBalanceDoubleClick')) {
     "    fetch('http://127.0.0.1:34741/double-click', { method: 'POST' }).catch(() => {});\n" +
     "  }\n\n";
   source = source.slice(0, menuAt) + method + source.slice(menuAt);
+  changed = true;
+}
+
+// ---- 双击音效：旧版单音效升级为四音效随机 ----
+const oldAudio = "      const audio = new Audio('balance-double-click.mp3');";
+if (source.includes(oldAudio)) {
+  source = source.replace(oldAudio, clickAudioCode.trimEnd());
   changed = true;
 }
 
@@ -118,6 +128,28 @@ if (!source.includes("label: '设置'")) {
   changed = true;
 }
 
+// ---- 多行气泡：whisper（/broadcast）文本按换行拆成多行 ----
+const whisperTextLine = "line.textContent = this.whisperView[0]?.text ?? '';";
+const whisperAt = source.indexOf(whisperTextLine);
+if (whisperAt >= 0) {
+  const whisperStart = source.lastIndexOf("      const line = document.createElement('div');", whisperAt);
+  const whisperEndMarker = "      this.bubble.appendChild(line);";
+  const whisperEnd = source.indexOf(whisperEndMarker, whisperAt);
+  if (whisperStart >= 0 && whisperEnd >= 0) {
+    const whisperEndAt = whisperEnd + whisperEndMarker.length;
+    const whisperNew =
+      "      const whisperText = this.whisperView[0]?.text ?? '';\n" +
+      "      for (const part of whisperText.split(String.fromCharCode(10))) {\n" +
+      "        const line = document.createElement('div');\n" +
+      "        line.className = 'pet-bub-row';\n" +
+      "        line.textContent = part;\n" +
+      "        this.bubble.appendChild(line);\n" +
+      "      }";
+    source = source.slice(0, whisperStart) + whisperNew + source.slice(whisperEndAt);
+    changed = true;
+  }
+}
+
 if (changed) {
   writeFileSync(sprite, source, 'utf8');
   console.log('balance UI patched.');
@@ -125,10 +157,14 @@ if (changed) {
   console.log('balance UI already patched.');
 }
 
-if (existsSync(audioSource)) {
-  mkdirSync(dirname(audioDest), { recursive: true });
-  copyFileSync(audioSource, audioDest);
-  console.log(`audio copied: ${audioDest}`);
-} else {
-  console.warn(`audio source missing: ${audioSource}`);
+for (const name of CLICK_SOUNDS) {
+  const src = join(PLUGIN_ROOT, 'assets', name);
+  const dest = join(helper, name);
+  if (existsSync(src)) {
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(src, dest);
+    console.log(`audio copied: ${dest}`);
+  } else {
+    console.warn(`audio source missing: ${src}`);
+  }
 }

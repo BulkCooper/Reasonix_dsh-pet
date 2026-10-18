@@ -69,9 +69,11 @@ pet.cmd stop
 
 ## 余额功能（DeepSeek）
 
-- **双击宠物**：播放音效，并显示余额气泡（总余额 / 赠金 / 今日已用 / 峰谷）
+- **双击宠物**：随机播放 4 个点击音效之一，并显示多行余额气泡
 - **右键「刷新余额」**：立即刷新
 - **右键「设置」**：打开设置页，编辑 API key、刷新间隔和余额预警阈值
+- **气泡排版**：余额 / 今日已用 / 梁文峰或梁文谷 / 下次峰谷切换时间，各一行
+- **峰谷称呼**：高峰 = 梁文峰，谷价 = 梁文谷
 - **60 秒自动刷新**：可在设置页修改（保存后定时器立即切换）
 - **余额预警**：低于阈值（默认 10 元）时气泡 + 余额动画，1 小时内不重复
 - **今日已用**：按余额下降累计；充值/赠金上升单独记录，不冲掉消费
@@ -80,7 +82,7 @@ pet.cmd stop
 - **API key**：可在设置页保存到 `home/balance-config.json`，也可使用环境变量或 `%APPDATA%/reasonix/.env` 中的 `DEEPSEEK_API_KEY`
 - 数据：`state/balance-ledger.json`；配置模板：`home/balance-config.example.json`
 - Kaspersky/本地代理：服务会自动并入系统根证书（不关闭证书校验）
-- 双击音效来自 DeepSeek-Balance-Whale-Widget（MIT）
+- 四个双击音效（D1/D2/Ya1/Ya2）来自 DeepSeek-Balance-Whale-Widget（MIT）
 
 ## 事件联动
 
