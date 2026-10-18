@@ -174,12 +174,16 @@ if (source.includes('this.showWhisperFromMenu();')) {
   );
   changed = true;
 }
-if (source.includes('this.showChatFromMenu();')) {
-  source = source.replace(
-    'this.showChatFromMenu();',
-    "const message = window.prompt('和桌宠说点什么？');\n" +
-      "      if (message) fetch('http://127.0.0.1:34741/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) }).catch(() => {});",
-  );
+if (source.includes("const message = window.prompt('和桌宠说点什么？');")) {
+  const promptStart = source.indexOf("const message = window.prompt('和桌宠说点什么？');");
+  const promptEnd = source.indexOf('return;', promptStart);
+  if (promptStart >= 0 && promptEnd > promptStart) {
+    source = source.slice(0, promptStart) + 'this.showChatFromMenu(); ' + source.slice(promptEnd);
+    changed = true;
+  }
+}
+if (source.includes("baseUrl: BASE + '/chat'")) {
+  source = source.replace("baseUrl: BASE + '/chat'", "baseUrl: 'http://127.0.0.1:34741/chat'");
   changed = true;
 }
 

@@ -143,3 +143,7 @@ commands/pet.md             /pet 命令
 ## 许可
 
 上游 dsh-pet 为 MIT 许可；本适配层同样以 MIT 许可发布。见 [LICENSE](LICENSE)。
+
+## 更新记录
+
+- 0.6.1：恢复原生对话输入框并改接本地可配置对话 API，修复点击「对话」无反应。

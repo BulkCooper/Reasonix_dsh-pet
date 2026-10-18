@@ -897,12 +897,12 @@ export function startBalanceService() {
     }
     if (url.pathname === '/chat' && req.method === 'POST') {
       const body = await readJsonBody(req);
-      const message = String(body.message || '').trim();
+      const message = String(body.message || body.text || '').trim();
       if (!message) return json(res, 400, { ok: false, error: 'message required' });
       const config = loadConfig();
       if (!resolveChatKey(config)) {
         await say('对话 API 未配置：右键 → 设置 → 对话 API');
-        return json(res, 200, { ok: false, error: 'no-key' });
+        return json(res, 200, { ok: false, error: 'no-key', message: '对话 API 未配置：右键 → 设置 → 对话 API' });
       }
       const history = readChatHistory();
       const messages = [
@@ -920,7 +920,7 @@ export function startBalanceService() {
         const text = chatErrorText(error);
         logLine('chat', `failed: ${error && error.message ? error.message : String(error)}`);
         await say(text);
-        return json(res, 200, { ok: false, error: text });
+        return json(res, 200, { ok: false, error: text, message: text });
       }
     }
     if (url.pathname === '/whisper' && req.method === 'POST') {
