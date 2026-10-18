@@ -40,6 +40,8 @@ export const SETTINGS_HTML = `<!doctype html>
   .account-row input.account-name { flex: 1; width: auto; padding: 4px 8px; font-size: 13px; }
   .account-row .account-value { flex: 0 0 auto; }
   select { width: 100%; padding: 10px 12px; border: 1px solid #d9dee8; border-radius: 8px; font-size: 14px; background: #fff; }
+  .savebar { position: sticky; bottom: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; background: #fff; padding: 12px 0; border-top: 1px solid #e6e9f0; z-index: 20; }
+  .savebar #message { margin-left: auto; color: #5b6472; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -86,13 +88,6 @@ export const SETTINGS_HTML = `<!doctype html>
     <div class="hint">起止时间按裁剪源音效的实际时长填写；裁剪结果会保存为 WAV 自定义音效。</div>
   </div>
 
-  <div class="row">
-    <button id="save">保存</button>
-    <button id="refresh" class="secondary">立即刷新余额</button>
-    <button id="close" class="secondary">关闭</button>
-  </div>
-  <div id="message"></div>
-
   <h2>对话 API</h2>
   <p class="sub">桌宠右键「对话 / 碎碎念」使用这个 OpenAI 兼容接口。API Key 留空会复用余额 key 或 .env 的 DEEPSEEK_API_KEY。</p>
   <label for="chatBaseUrl">Base URL</label>
@@ -113,8 +108,18 @@ export const SETTINGS_HTML = `<!doctype html>
   <h2>当前状态</h2>
   <pre id="status">加载中…</pre>
 </div>
+  <div class="savebar">
+    <button id="save" disabled>保存设置</button>
+    <button id="refresh" class="secondary">立即刷新余额</button>
+    <button id="clearSpent" class="secondary">清除今日已用</button>
+    <button id="close" class="secondary">关闭</button>
+    <span id="message"></span>
+  </div>
+
 <script>
   var $ = function (id) { return document.getElementById(id); };
+  var settingsReady = false;
+  var saving = false;
   function showStatus(data) {
     $('status').textContent = JSON.stringify(data, null, 2);
   }
@@ -292,6 +297,8 @@ export const SETTINGS_HTML = `<!doctype html>
     });
   }
   async function load() {
+    settingsReady = false;
+    $('save').disabled = true;
     var r = await fetch('/settings/data');
     var d = await r.json();
     $('refreshSec').value = d.refreshSec;
@@ -310,8 +317,14 @@ export const SETTINGS_HTML = `<!doctype html>
     var st = await s.json();
     showStatus(st);
     renderAccounts(st.accounts || []);
+    settingsReady = true;
+    $('save').disabled = false;
   }
   $('save').onclick = async function () {
+    if (!settingsReady || saving) return;
+    saving = true;
+    $('save').disabled = true;
+    $('message').textContent = '保存中…';
     var body = {
       apiKey: $('apiKey').value,
       clearApiKey: $('clearKey').checked,
@@ -338,19 +351,29 @@ export const SETTINGS_HTML = `<!doctype html>
         return map;
       })()
     };
-    var r = await fetch('/settings', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    var d = await r.json();
-    $('message').textContent = d.ok ? '已保存' : ('保存失败：' + (d.error || '未知错误'));
-    if (d.ok) {
-      $('apiKey').value = '';
-      $('clearKey').checked = false;
-      $('chatApiKey').value = '';
-      $('clearChatKey').checked = false;
-      await load();
+    try {
+      var r = await fetch('/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      var d = await r.json();
+      if (d.ok) {
+        $('apiKey').value = '';
+        $('clearKey').checked = false;
+        $('chatApiKey').value = '';
+        $('clearChatKey').checked = false;
+        $('message').textContent = '已保存';
+        await load();
+        $('message').textContent = '已保存';
+      } else {
+        $('message').textContent = '保存失败：' + (d.error || '未知错误');
+      }
+    } catch (e) {
+      $('message').textContent = '保存失败：' + e.message;
+    } finally {
+      saving = false;
+      $('save').disabled = !settingsReady;
     }
   };
   $('refresh').onclick = async function () {
@@ -358,6 +381,22 @@ export const SETTINGS_HTML = `<!doctype html>
     await fetch('/refresh', { method: 'POST' });
     $('message').textContent = '已刷新';
     await load();
+  };
+  $('clearSpent').onclick = async function () {
+    if (!settingsReady) return;
+    if (!confirm('确定清除今日已用记录？')) return;
+    $('clearSpent').disabled = true;
+    $('message').textContent = '清除中…';
+    try {
+      var r = await fetch('/ledger/clear', { method: 'POST' });
+      var d = await r.json();
+      $('message').textContent = d.ok ? '今日已用已清零' : '清除失败';
+      if (d.ok) await load();
+    } catch (e) {
+      $('message').textContent = '清除失败：' + e.message;
+    } finally {
+      $('clearSpent').disabled = false;
+    }
   };
   $('close').onclick = function () { window.close(); };
   load();

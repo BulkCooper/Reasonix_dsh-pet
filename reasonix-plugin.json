@@ -1,8 +1,8 @@
 {
   "apiVersion": "reasonix.io/plugin/v2",
   "name": "DSH_pet_reasonix",
-  "version": "1.4.0",
-  "description": "将 dsh-pet 大肥鱼桌宠移植到 Reasonix Studio：多账户余额/今日已用/峰谷/每轮消耗、按下/松开双音效、可配置对话 API、会话事件联动、随 Reasonix 进程自动启停。",
+  "version": "1.5.0",
+  "description": "将 dsh-pet 大肥鱼桌宠移植到 Reasonix Studio：多账户余额/今日已用/峰谷/每轮消耗、按下/松开串行音效、可配置对话 API、会话事件联动、随 Reasonix 进程自动启停。",
   "contributes": {
     "skills": [
       "skills"

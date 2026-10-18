@@ -386,6 +386,17 @@ function updateLedger(snapshot) {
   return ledger;
 }
 
+function clearTodaySpent() {
+  const ledger = readJson(BALANCE_LEDGER_FILE, null);
+  if (!ledger) return null;
+  ledger.spent = 0;
+  ledger.startTotal = ledger.lastTotal;
+  ledger.updatedAt = Date.now();
+  writeJson(BALANCE_LEDGER_FILE, ledger);
+  lastLedger = ledger;
+  return ledger;
+}
+
 function peakInfo(now = new Date()) {
   const day = now.getDay();
   const minutes = now.getHours() * 60 + now.getMinutes();
@@ -643,21 +654,26 @@ function saveSettings(body) {
   }
   if (typeof body.chatBaseUrl === 'string' && body.chatBaseUrl.trim()) next.chatBaseUrl = body.chatBaseUrl.trim();
   if (typeof body.chatModel === 'string' && body.chatModel.trim()) next.chatModel = body.chatModel.trim();
-  if (typeof body.chatPrompt === 'string' && body.chatPrompt.trim()) next.chatPrompt = body.chatPrompt.trim();
+  if (typeof body.chatPrompt === 'string') next.chatPrompt = body.chatPrompt.trim() || DEFAULTS.chatPrompt;
   if (body.clearChatApiKey === true) next.chatApiKey = '';
   else if (typeof body.chatApiKey === 'string' && body.chatApiKey.trim()) next.chatApiKey = body.chatApiKey.trim();
   if (body.accountVisibility && typeof body.accountVisibility === 'object') {
-    const visibility = {};
+    const visibility = {
+      ...(next.accountVisibility && typeof next.accountVisibility === 'object' ? next.accountVisibility : {}),
+    };
     for (const [id, visible] of Object.entries(body.accountVisibility)) {
       visibility[String(id)] = visible === true;
     }
     next.accountVisibility = visibility;
   }
   if (body.accountNames && typeof body.accountNames === 'object') {
-    const names = {};
+    const names = {
+      ...(next.accountNames && typeof next.accountNames === 'object' ? next.accountNames : {}),
+    };
     for (const [id, name] of Object.entries(body.accountNames)) {
       const value = String(name || '').trim().slice(0, 40);
       if (value) names[String(id)] = value;
+      else delete names[String(id)];
     }
     next.accountNames = names;
   }
@@ -927,6 +943,12 @@ export function startBalanceService() {
         await say(text);
         return json(res, 200, { ok: false, error: text });
       }
+    }
+    if (url.pathname === '/ledger/clear' && req.method === 'POST') {
+      const ledger = clearTodaySpent();
+      if (!ledger) return json(res, 200, { ok: false, error: 'no-ledger' });
+      await say('今日已用已清零');
+      return json(res, 200, { ok: true, ledger });
     }
     return json(res, 404, { ok: false, error: 'not found' });
   });

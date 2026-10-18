@@ -30,20 +30,37 @@ const doubleClickMethod =
 
 const playSoundMethod =
   "  playConfiguredSound(phase) {\n" +
+  "    const run = () => this.playConfiguredSoundNow(phase);\n" +
+  "    this.soundChain = (this.soundChain || Promise.resolve()).then(run, run);\n" +
+  "  }\n\n" +
+  "  playConfiguredSoundNow(phase) {\n" +
   "    const fallback = phase === 'release' ? 'click-2.mp3' : 'click-1.mp3';\n" +
-  "    const play = (src) => {\n" +
+  "    return fetch('http://127.0.0.1:34741/click-sound?phase=' + phase, { signal: AbortSignal.timeout(3000) })\n" +
+  "      .then((response) => (response.ok ? response.json() : null))\n" +
+  "      .then((data) => this.playSoundAndWait(data && data.url ? data.url : fallback))\n" +
+  "      .catch(() => this.playSoundAndWait(fallback));\n" +
+  "  }\n\n" +
+  "  playSoundAndWait(src) {\n" +
+  "    return new Promise((resolve) => {\n" +
+  "      let done = false;\n" +
+  "      const finish = () => {\n" +
+  "        if (!done) {\n" +
+  "          done = true;\n" +
+  "          resolve();\n" +
+  "        }\n" +
+  "      };\n" +
   "      try {\n" +
   "        const audio = new Audio(src);\n" +
   "        audio.volume = 0.85;\n" +
-  "        audio.play().catch(() => {});\n" +
+  "        audio.addEventListener('ended', finish, { once: true });\n" +
+  "        audio.addEventListener('error', finish, { once: true });\n" +
+  "        const played = audio.play();\n" +
+  "        if (played && played.catch) played.catch(finish);\n" +
+  "        setTimeout(finish, 8000);\n" +
   "      } catch {\n" +
-  "        /* ignore */\n" +
+  "        finish();\n" +
   "      }\n" +
-  "    };\n" +
-  "    fetch('http://127.0.0.1:34741/click-sound?phase=' + phase)\n" +
-  "      .then((response) => (response.ok ? response.json() : null))\n" +
-  "      .then((data) => play(data && data.url ? data.url : fallback))\n" +
-  "      .catch(() => play(fallback));\n" +
+  "    });\n" +
   "  }\n\n";
 
 // ---- 双击 ----
@@ -91,6 +108,14 @@ if (!source.includes('playConfiguredSound(phase)')) {
   const at = source.indexOf('  onBalanceDoubleClick() {');
   if (at >= 0) {
     source = source.slice(0, at) + playSoundMethod + source.slice(at);
+    changed = true;
+  }
+}
+if (!source.includes('playSoundAndWait(src)')) {
+  const methodStart = source.indexOf('  playConfiguredSound(phase) {');
+  const methodEnd = source.indexOf('  onBalanceDoubleClick() {', methodStart);
+  if (methodStart >= 0 && methodEnd > methodStart) {
+    source = source.slice(0, methodStart) + playSoundMethod + source.slice(methodEnd);
     changed = true;
   }
 }
