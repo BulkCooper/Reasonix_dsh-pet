@@ -1,7 +1,7 @@
 {
   "apiVersion": "reasonix.io/plugin/v2",
   "name": "reasonix-pet",
-  "version": "2.1.12",
+  "version": "2.1.13",
   "description": "dsh-pet 桌宠的 Reasonix 适配版：固定版本运行时、hooks 生命周期、用户自填余额/对话 API。",
   "contributes": {
     "skills": [

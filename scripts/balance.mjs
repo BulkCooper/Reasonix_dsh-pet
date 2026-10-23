@@ -83,6 +83,7 @@ const DEFAULTS = {
   bubbleFontSize: 14,
   hoverName: '',
   maxMoveSpeed: 200,
+  onboardingDone: false,
   returnAnchor: null,
   windowAnchor: null,
   initialAnchor: null,
@@ -1046,6 +1047,7 @@ export function startBalanceService() {
         bubbleFontSize: Number.isFinite(Number(config.bubbleFontSize)) ? Math.max(10, Math.min(30, Math.round(Number(config.bubbleFontSize)))) : DEFAULTS.bubbleFontSize,
     hoverName: String(config.hoverName || '').trim().slice(0, 40),
     maxMoveSpeed: Number.isFinite(Number(config.maxMoveSpeed)) ? Math.max(60, Math.min(800, Math.round(Number(config.maxMoveSpeed)))) : DEFAULTS.maxMoveSpeed,
+        onboardingDone: config.onboardingDone === true,
         windowAnchor: normalizeReturnAnchor(config.windowAnchor),
         initialAnchor: normalizeReturnAnchor(config.initialAnchor) || normalizeReturnAnchor(config.returnAnchor),
       });
@@ -1062,6 +1064,13 @@ export function startBalanceService() {
       if (scope === 'initialAnchor') config.returnAnchor = anchor; // 兼容旧字段，clear 时不能让它回魂
       writeJson(BALANCE_CONFIG_FILE, config);
       return json(res, 200, { ok: true, scope, windowAnchor: config.windowAnchor, initialAnchor: config.initialAnchor });
+    }
+    if (url.pathname === '/onboarding' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const config = loadConfig();
+      if (body && typeof body.done === 'boolean') config.onboardingDone = body.done;
+      writeJson(BALANCE_CONFIG_FILE, config);
+      return json(res, 200, { ok: true, onboardingDone: config.onboardingDone === true });
     }
     if (url.pathname === '/status') {
       return json(res, 200, {
