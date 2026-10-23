@@ -2,8 +2,8 @@
   "petRuntime": {
     "package": "dsh-pet@0.3.7",
     "file": "pet-runtime.zip",
-    "sha256": "377d52604aa6e7de657ec8ba7158a66f41af53c2b88a585deaac3076a5d906bb",
-    "bytes": 63734696
+    "sha256": "67348ae70969fffd7937e2f969120768062963bee3a1a0ce408e1b63115b75e3",
+    "bytes": 63734812
   },
   "electron": {
     "version": "43.3.0",
